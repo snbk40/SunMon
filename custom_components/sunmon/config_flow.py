@@ -30,17 +30,14 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_SERIAL_PORT,
     CONF_TRACE_SERIAL,
-    CONF_YIELD_QUERY_PAUSE,
     DEFAULT_CHANNELS,
     DEFAULT_READ_YIELDS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SERIAL_PORT,
     DEFAULT_TITLE,
-    DEFAULT_YIELD_QUERY_PAUSE,
     DOMAIN,
     LOGGER,
     MAX_SCAN_INTERVAL,
-    MAX_YIELD_QUERY_PAUSE,
     MIN_SCAN_INTERVAL,
 )
 
@@ -55,16 +52,6 @@ _SCAN_INTERVAL_SELECTOR = selector.NumberSelector(
         max=MAX_SCAN_INTERVAL,
         step=1,
         unit_of_measurement="s",
-        mode=selector.NumberSelectorMode.BOX,
-    )
-)
-
-_YIELD_QUERY_PAUSE_SELECTOR = selector.NumberSelector(
-    selector.NumberSelectorConfig(
-        min=0,
-        max=MAX_YIELD_QUERY_PAUSE,
-        step=10,
-        unit_of_measurement="ms",
         mode=selector.NumberSelectorMode.BOX,
     )
 )
@@ -200,7 +187,6 @@ class SunMonOptionsFlow(OptionsFlow):
                     CONF_CHANNELS: int(user_input[CONF_CHANNELS]),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_READ_YIELDS: bool(user_input[CONF_READ_YIELDS]),
-                    CONF_YIELD_QUERY_PAUSE: int(user_input[CONF_YIELD_QUERY_PAUSE]),
                     CONF_TRACE_SERIAL: bool(user_input[CONF_TRACE_SERIAL]),
                 }
             )
@@ -228,12 +214,6 @@ class SunMonOptionsFlow(OptionsFlow):
                         entry.data.get(CONF_READ_YIELDS, DEFAULT_READ_YIELDS),
                     ),
                 ): selector.BooleanSelector(),
-                vol.Required(
-                    CONF_YIELD_QUERY_PAUSE,
-                    default=entry.options.get(
-                        CONF_YIELD_QUERY_PAUSE, DEFAULT_YIELD_QUERY_PAUSE
-                    ),
-                ): _YIELD_QUERY_PAUSE_SELECTOR,
                 vol.Required(
                     CONF_TRACE_SERIAL,
                     default=entry.options.get(

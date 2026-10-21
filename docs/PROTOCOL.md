@@ -251,6 +251,7 @@ Example: `crc8("1<M010001")` = `0xB0`.
 | Wait for an answer | at most 2 s, then the request counts as unanswered | `SOLAR_FSM_STUCK_TIMEOUT` |
 | Pause before each channel request | 0.5 s | `SOLAR_READ_DELAY` |
 | Clock and yield round | once a minute | `SOLAR_TIME_CHECK_INTERVAL` |
+| Pause before each yield query | 300 ms; without it a SolarCount was seen not to answer | SunMon |
 | Pause after a yield answer | 20 ms, for the second ETX | SunMon |
 | Measuring cycle | every 10 s by default (5–3600 s) | SunMon option |
 

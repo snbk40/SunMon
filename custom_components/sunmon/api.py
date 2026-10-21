@@ -112,6 +112,9 @@ BUS_CAPACITY = 57600 / 10  # bytes per second
 # A yield response ends with two ETX. The frame is taken as complete at the
 # first one; this is how long to wait for the second before sending again.
 YIELD_SETTLE_TIME = 0.02
+# Pause before each yield query. A SolarCount was seen to ignore a yield query
+# sent right after the clock answer, and to answer with this pause.
+YIELD_QUERY_PAUSE = 0.3
 _YIELD_FRAME_LENGTH = 19  # STX up to and including the first ETX
 
 _RESPONSE_HEADER = bytes([STX, ADDR_HOST, ADDR_SOLARCOUNT])
@@ -691,7 +694,7 @@ class SolarCountClient:
         response_timeout: float = RESPONSE_TIMEOUT,
         request_interval: float = REQUEST_INTERVAL,
         yield_interval: float = YIELD_INTERVAL,
-        yield_query_pause: float = 0.0,
+        yield_query_pause: float = YIELD_QUERY_PAUSE,
     ) -> None:
         """Remember the settings; the port is opened on first use."""
         if not 1 <= channels <= MAX_CHANNELS:
@@ -852,8 +855,6 @@ class SolarCountClient:
     def _read_yield(self, period: int, channel: int, value: int) -> int | None:
         """Read one yield. Returns None if the response is invalid."""
         if self._yield_query_pause > 0:
-            # Some SolarCounts may need time after the previous answer before
-            # they listen for a yield query.
             time.sleep(self._yield_query_pause)
         try:
             return self._exchange(

@@ -11,10 +11,8 @@ from .const import (
     CONF_READ_YIELDS,
     CONF_SERIAL_PORT,
     CONF_TRACE_SERIAL,
-    CONF_YIELD_QUERY_PAUSE,
     DEFAULT_CHANNELS,
     DEFAULT_READ_YIELDS,
-    DEFAULT_YIELD_QUERY_PAUSE,
 )
 from .coordinator import SunMonConfigEntry, SunMonCoordinator
 
@@ -34,14 +32,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SunMonConfigEntry) -> bo
     read_yields = entry.options.get(
         CONF_READ_YIELDS, entry.data.get(CONF_READ_YIELDS, DEFAULT_READ_YIELDS)
     )
-    yield_query_pause = entry.options.get(
-        CONF_YIELD_QUERY_PAUSE, DEFAULT_YIELD_QUERY_PAUSE
-    )
     client = SolarCountClient(
-        entry.data[CONF_SERIAL_PORT],
-        int(channels),
-        read_yields=bool(read_yields),
-        yield_query_pause=int(yield_query_pause) / 1000,
+        entry.data[CONF_SERIAL_PORT], int(channels), read_yields=bool(read_yields)
     )
     coordinator = SunMonCoordinator(hass, entry, client)
 

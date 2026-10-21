@@ -643,6 +643,7 @@ YEAR_YIELDS = [61234, 0, 2, 0x10000000, 77, 4242]
 @unittest.skipUnless(hasattr(os, "ttyname"), "needs a POSIX system")
 class Yields(unittest.TestCase):
     def client(self, device, channels=6, **kwargs):
+        kwargs.setdefault("yield_query_pause", 0)
         client = api.SolarCountClient(
             device.port,
             channels,
@@ -755,6 +756,7 @@ class Yields(unittest.TestCase):
         self.assertEqual([y.previous_day for y in client.read().yields], [1, 2])
 
     def test_pauses_before_each_yield_query(self):
+        self.assertEqual(api.YIELD_QUERY_PAUSE, 0.3)
         device = self.device()
         client = self.client(device, channels=1, yield_query_pause=0.05)
         sleeps = []
@@ -1130,7 +1132,9 @@ class TrafficOnTheLine(unittest.TestCase):
         self.assertAlmostEqual(stats.bus_load, expected, delta=0.02)
 
     def test_yield_round_bytes(self):
-        client = self.client(FakeSolarCount(WATTS, VOLTS), read_yields=True)
+        client = self.client(
+            FakeSolarCount(WATTS, VOLTS), read_yields=True, yield_query_pause=0
+        )
         client.read()
         stats = client.stats
         # Clock 9 + 24 yield queries of 12; answers 14 + 24 x 20.

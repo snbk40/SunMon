@@ -86,7 +86,6 @@ when the adapter is replugged.
 | Number of channels | 6 | how many SolarCount channels to read, starting with the first |
 | Update interval | 10 s | how often the SolarCount is read, 5 to 3600 seconds |
 | Read yields | on | also read the yields, once a minute |
-| Pause before each yield query | 0 ms | wait this long before each yield query, 0 to 2000 ms; only in the options, see [Yields](#yields) |
 | Log serial traffic (TRACE) | off | write every byte on the line to the log, see [Logging](#logging) |
 
 ## What is read
@@ -195,10 +194,10 @@ channel:
   yet read are treated as failed, and the next round tries again. This costs up
   to 2 seconds once a minute; switch **Read yields** off if your SolarCount
   never answers these queries.
-- If the SolarCount answers the clock but not the first yield query, try a
-  **Pause before each yield query** of a few hundred milliseconds in the
-  options. The pause comes before every yield query, so with six channels a
-  round takes up to 24 times the pause longer.
+- SunMon waits 300 ms before each yield query. A SolarCount was seen to
+  ignore a yield query sent right after the clock answer. With six channels
+  the 24 queries make a yield round take at least 7 seconds; the power
+  readings follow when it is done.
 
 ## RS485 counters
 

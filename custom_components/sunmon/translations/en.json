@@ -45,14 +45,12 @@
           "channels": "Number of channels",
           "scan_interval": "Update interval",
           "read_yields": "Read yields",
-          "yield_query_pause": "Pause before each yield query",
           "trace_serial": "Log serial traffic (TRACE)"
         },
         "data_description": {
           "channels": "How many SolarCount channels to read, starting with the first.",
           "scan_interval": "How often the SolarCount is read.",
           "read_yields": "Also reads the yield of the previous day, the previous hour, the previous month and the previous year of each channel, once a minute. Switch it off if your SolarCount does not answer these queries.",
-          "yield_query_pause": "Waits this long before sending each yield query. Try a few hundred milliseconds if the SolarCount answers the power readings but not the yield queries. With six channels this makes each yield round up to 24 times this pause longer.",
           "trace_serial": "Writes every byte sent and received to the Home Assistant log at level TRACE. Switch it off again after troubleshooting, it fills the log quickly."
         }
       }
