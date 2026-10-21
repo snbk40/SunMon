@@ -754,6 +754,23 @@ class Yields(unittest.TestCase):
         device.day_yields = [1, 2, 3, 4, 5, 6]
         self.assertEqual([y.previous_day for y in client.read().yields], [1, 2])
 
+    def test_pauses_before_each_yield_query(self):
+        device = self.device()
+        client = self.client(device, channels=1, yield_query_pause=0.05)
+        sleeps = []
+        original = api.time.sleep
+
+        def sleep(seconds):
+            sleeps.append(seconds)
+            original(seconds)
+
+        api.time.sleep = sleep
+        self.addCleanup(setattr, api.time, "sleep", original)
+        data = client.read()
+        self.assertEqual(data.yields[0].previous_day, DAY_YIELDS[0])
+        # Four yield queries, then the pause before the one channel request.
+        self.assertEqual(sleeps, [0.05, 0.05, 0.05, 0.05, 0.01])
+
     def test_not_read_unless_switched_on(self):
         device = self.device()
         client = api.SolarCountClient(

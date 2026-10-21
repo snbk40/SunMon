@@ -45,12 +45,14 @@
           "channels": "Anzahl der Kanäle",
           "scan_interval": "Aktualisierungsintervall",
           "read_yields": "Erträge lesen",
+          "yield_query_pause": "Pause vor jeder Ertragsabfrage",
           "trace_serial": "Seriellen Datenverkehr protokollieren (TRACE)"
         },
         "data_description": {
           "channels": "Wie viele SolarCount-Kanäle gelesen werden, beginnend mit dem ersten.",
           "scan_interval": "Wie oft der SolarCount abgefragt wird.",
           "read_yields": "Liest zusätzlich einmal pro Minute den Ertrag des Vortags, der vorherigen Stunde, des Vormonats und des Vorjahres jedes Kanals. Ausschalten, falls der SolarCount diese Abfragen nicht beantwortet.",
+          "yield_query_pause": "Wartet so lange, bevor jede Ertragsabfrage gesendet wird. Einige hundert Millisekunden ausprobieren, falls der SolarCount die Leistungsabfragen beantwortet, die Ertragsabfragen aber nicht. Bei sechs Kanälen dauert jede Ertragsrunde dadurch bis zu 24-mal diese Pause länger.",
           "trace_serial": "Schreibt jedes gesendete und empfangene Byte mit der Stufe TRACE in das Home-Assistant-Protokoll. Nach der Fehlersuche wieder ausschalten, das Protokoll wächst schnell."
         }
       }
