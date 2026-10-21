@@ -16,7 +16,7 @@ CONF_TRACE_SERIAL = "trace_serial"
 
 DEFAULT_TITLE = "SolarCount"
 DEFAULT_SERIAL_PORT = "/dev/ttyACM0"
-DEFAULT_CHANNELS = 6  # the firmware queries channels 0 to 5
+DEFAULT_CHANNELS = 3  # the firmware queries channels 0 to 5
 DEFAULT_SCAN_INTERVAL = 10  # seconds
 MIN_SCAN_INTERVAL = 5  # one cycle of six channels takes about 3 seconds
 MAX_SCAN_INTERVAL = 3600

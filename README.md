@@ -83,7 +83,7 @@ when the adapter is replugged.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | Serial port | first port found | the USB to RS485 adapter |
-| Number of channels | 6 | how many SolarCount channels to read, starting with the first |
+| Number of channels | 3 | how many SolarCount channels to read, 1 to 6, starting with the first |
 | Update interval | 10 s | how often the SolarCount is read, 5 to 3600 seconds |
 | Log serial traffic (TRACE) | off | write every byte on the line to the log, see [Logging](#logging) |
 
@@ -246,7 +246,7 @@ Five more diagnostic sensors show how much traffic goes over the line.
   receiving share one pair of wires. At 57600 baud with 8N1 the line carries
   5760 bytes per second.
 - In the first minute after a start, the average is taken over the time so far.
-- With the defaults (six channels, 10 seconds) expect about 12 B/s
+- With six channels and an update interval of 10 seconds expect about 12 B/s
   sent, 19 B/s received and a bus load of about 0.5 %.
 - Like the counters, these sensors stay available and keep updating while the
   SolarCount does not answer: sending goes on, receiving drops to zero. They
