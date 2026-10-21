@@ -53,6 +53,11 @@
     }
   },
   "entity": {
+    "button": {
+      "reset_diagnostics": {
+        "name": "Alle Diagnosewerte auf 0 setzen"
+      }
+    },
     "binary_sensor": {
       "values_held": {
         "name": "Werte gehalten",

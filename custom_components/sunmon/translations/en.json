@@ -53,6 +53,11 @@
     }
   },
   "entity": {
+    "button": {
+      "reset_diagnostics": {
+        "name": "Clear all diagnostics to 0"
+      }
+    },
     "binary_sensor": {
       "values_held": {
         "name": "Values held",

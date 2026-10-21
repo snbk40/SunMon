@@ -507,6 +507,19 @@ class Counters(unittest.TestCase):
             client.read()
         self.assertStats(client)
 
+    def test_reset_stats_sets_everything_to_zero(self):
+        client = self.client(FakeSolarCount(WATTS, VOLTS, bad_crc_channels=(1,)))
+        client.read()
+        client.reset_stats()
+        self.assertStats(client)
+        stats = client.stats
+        self.assertEqual(
+            (stats.bytes_sent, stats.bytes_received, stats.send_rate, stats.bus_load),
+            (0, 0, 0.0, 0.0),
+        )
+        client.read()
+        self.assertStats(client, requests=7, read_ok=6, crc_errors=1)
+
     def test_stats_are_a_snapshot(self):
         client = self.client(FakeSolarCount(WATTS, VOLTS), channels=1)
         before = client.stats
@@ -1109,6 +1122,17 @@ class Traffic(unittest.TestCase):
     def test_never_divides_by_less_than_a_second(self):
         self.meter.sent(50)
         self.assertEqual(self.meter.rates(), (50.0, 0.0))
+
+    def test_reset_starts_over_from_zero(self):
+        self.meter.sent(100)
+        self.meter.received(200)
+        self.now = 130
+        self.meter.reset()
+        self.assertEqual((self.meter.bytes_sent, self.meter.bytes_received), (0, 0))
+        self.assertEqual(self.meter.rates(), (0.0, 0.0))
+        self.meter.sent(40)
+        self.now = 140  # averaged over the 10 s since the reset
+        self.assertEqual(self.meter.rates(), (4.0, 0.0))
 
 
 @unittest.skipUnless(hasattr(os, "ttyname"), "needs a POSIX system")

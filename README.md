@@ -221,6 +221,11 @@ yields per channel).
   reloaded.
 - The connection test in the setup dialog is not counted, and neither is a
   serial port that cannot be opened.
+- The **Clear all diagnostics to 0** button sets the five counters, the bytes
+  sent and received, both throughputs and the bus load to 0. If a cycle is
+  running, it waits for the cycle to finish first. The averages then start over
+  as after a restart. Total power generated and the Values held indicator are
+  not affected.
 
 ## RS485 throughput
 
@@ -316,6 +321,7 @@ Home Assistant they are two different integrations (`sunmon` and
 | `custom_components/sunmon/entity.py` | Base class: device info and unique IDs |
 | `custom_components/sunmon/sensor.py` | Power, voltage and yield sensors, their sums, the total energy, and the RS485 sensors |
 | `custom_components/sunmon/binary_sensor.py` | The "Values held" indicator |
+| `custom_components/sunmon/button.py` | The "Clear all diagnostics to 0" button |
 | `custom_components/sunmon/translations/` | UI texts (English and German) |
 | `custom_components/sunmon/brand/` | The integration's icon |
 | `hacs.json` | Name and minimum Home Assistant version for HACS |

@@ -14,7 +14,7 @@ from .const import (
 )
 from .coordinator import SunMonConfigEntry, SunMonCoordinator
 
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SunMonConfigEntry) -> bool:

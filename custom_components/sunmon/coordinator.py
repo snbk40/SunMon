@@ -75,6 +75,11 @@ class SunMonCoordinator(DataUpdateCoordinator[SolarCountData]):
 
         return remove
 
+    async def async_reset_stats(self) -> None:
+        """Set the RS485 counters and throughput back to zero."""
+        await self.hass.async_add_executor_job(self.client.reset_stats)
+        self._async_notify_stats_listeners()
+
     async def _async_update_data(self) -> SolarCountData:
         """Read all channels. The serial I/O blocks, so it runs in a thread.
 

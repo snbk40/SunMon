@@ -250,6 +250,14 @@ class TrafficMeter:
             self.bytes_received += received
             self._events.append((self._clock(), sent, received))
 
+    def reset(self) -> None:
+        """Start counting from zero again, as if the meter were new."""
+        with self._lock:
+            self._start = self._clock()
+            self._events.clear()
+            self.bytes_sent = 0
+            self.bytes_received = 0
+
     def rates(self) -> tuple[float, float]:
         """Return the send and receive rate in bytes per second."""
         now = self._clock()
@@ -727,6 +735,16 @@ class SolarCountClient:
             receive_rate=round(receive_rate, 1),
             bus_load=round((send_rate + receive_rate) / BUS_CAPACITY * 100, 2),
         )
+
+    def reset_stats(self) -> None:
+        """Set all counters and the traffic meter back to zero.
+
+        Waits for a running cycle to finish, so no request is half counted.
+        """
+        with self._lock:
+            for name in self._counters:
+                self._counters[name] = 0
+            self.traffic.reset()
 
     def close(self) -> None:
         """Close the serial port."""
