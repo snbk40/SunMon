@@ -258,9 +258,10 @@ Example: `crc8("1<M010001")` = `0xB0`.
 Before each request SunMon throws away any bytes that are still waiting, so a
 late answer to an earlier request is never taken for the new one.
 
-With six channels and yields on, a cycle sends 7 requests (init and six
-channels) and takes about 3 seconds. Once a minute the yield round adds 25
-requests: the clock and four yields per channel.
+With six channels a cycle sends 7 requests (init and six channels) and takes
+about 3 seconds. Once a minute the yield round adds 25 requests: the clock and
+four yields per channel. With the 300 ms pause before each of the 24 yield
+queries the round takes at least 7 seconds.
 
 ## Flow
 
@@ -279,18 +280,22 @@ sequenceDiagram
     H->>S: 04 clock
     S-->>H: 84 year, month, day, hour, minute
     loop channel 0 to 5
+        Note over H: wait 300 ms
         H->>S: yield query D, previous day
         S-->>H: 1D, yield as 8 hex digits
     end
     loop channel 0 to 5
+        Note over H: wait 300 ms
         H->>S: yield query h, previous hour
         S-->>H: 1h, yield as 8 hex digits
     end
     loop channel 0 to 5
+        Note over H: wait 300 ms
         H->>S: yield query M, previous month
         S-->>H: 1M, yield as 8 hex digits
     end
     loop channel 0 to 5
+        Note over H: wait 300 ms
         H->>S: yield query Y, previous year
         S-->>H: 1Y, yield as 8 hex digits
     end
@@ -321,7 +326,7 @@ flowchart TD
     due -- yes --> clock[Ask for the clock: 04]
     clock -->|valid answer| periods[Work out the previous day, hour,<br/>month and year]
     clock -->|no valid answer| ystop[Yields not read this round]
-    periods --> yloop[For each period and channel:<br/>send a yield query]
+    periods --> yloop[For each period and channel:<br/>wait 300 ms, send a yield query]
     yloop -->|valid answer| yok[Keep the yield]
     yloop -->|wrong CRC or<br/>wrong channel| ybad[This yield unknown]
     yloop -->|no answer| ystop
@@ -431,6 +436,7 @@ From any state, no progress for 2 seconds restarts the whole sequence at
 | Previous hour at midnight | sends 22 | sends 23 |
 | Power | unsigned | signed |
 | Yield digits used | last 4 (day) or 7 (hour) | all 8 |
+| Pause before a yield query | none | 300 ms |
 | No answer | restarts the whole sequence | ends the cycle, keeps the last values for a minute |
 | Echo and stray `00` | not handled | skipped |
 
