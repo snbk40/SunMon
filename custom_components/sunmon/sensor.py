@@ -251,15 +251,14 @@ async def async_setup_entry(
     ]
     entities.extend(SunMonSumSensor(coordinator, description) for description in SUMS)
     entities.append(SunMonEnergySensor(coordinator))
-    if coordinator.client.read_yields:
-        entities.extend(
-            SunMonYieldSensor(coordinator, channel, description)
-            for channel in range(coordinator.client.channels)
-            for description in YIELDS
-        )
-        entities.extend(
-            SunMonSumSensor(coordinator, description) for description in YIELD_SUMS
-        )
+    entities.extend(
+        SunMonYieldSensor(coordinator, channel, description)
+        for channel in range(coordinator.client.channels)
+        for description in YIELDS
+    )
+    entities.extend(
+        SunMonSumSensor(coordinator, description) for description in YIELD_SUMS
+    )
     entities.extend(SunMonCounter(coordinator, description) for description in COUNTERS)
     async_add_entities(entities)
 

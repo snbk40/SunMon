@@ -8,14 +8,12 @@
           "serial_port": "Serielle Schnittstelle",
           "channels": "Anzahl der Kanäle",
           "scan_interval": "Aktualisierungsintervall",
-          "read_yields": "Erträge lesen",
           "trace_serial": "Seriellen Datenverkehr protokollieren (TRACE)"
         },
         "data_description": {
           "serial_port": "Der USB-RS485-Adapter. Am besten den Pfad /dev/serial/by-id/... verwenden, er bleibt nach dem Umstecken gleich.",
           "channels": "Wie viele SolarCount-Kanäle gelesen werden, beginnend mit dem ersten.",
           "scan_interval": "Wie oft der SolarCount abgefragt wird.",
-          "read_yields": "Liest zusätzlich einmal pro Minute den Ertrag des Vortags, der vorherigen Stunde, des Vormonats und des Vorjahres jedes Kanals. Ausschalten, falls der SolarCount diese Abfragen nicht beantwortet.",
           "trace_serial": "Schreibt jedes gesendete und empfangene Byte mit der Stufe TRACE in das Home-Assistant-Protokoll. Nach der Fehlersuche wieder ausschalten, das Protokoll wächst schnell."
         }
       },
@@ -44,13 +42,11 @@
         "data": {
           "channels": "Anzahl der Kanäle",
           "scan_interval": "Aktualisierungsintervall",
-          "read_yields": "Erträge lesen",
           "trace_serial": "Seriellen Datenverkehr protokollieren (TRACE)"
         },
         "data_description": {
           "channels": "Wie viele SolarCount-Kanäle gelesen werden, beginnend mit dem ersten.",
           "scan_interval": "Wie oft der SolarCount abgefragt wird.",
-          "read_yields": "Liest zusätzlich einmal pro Minute den Ertrag des Vortags, der vorherigen Stunde, des Vormonats und des Vorjahres jedes Kanals. Ausschalten, falls der SolarCount diese Abfragen nicht beantwortet.",
           "trace_serial": "Schreibt jedes gesendete und empfangene Byte mit der Stufe TRACE in das Home-Assistant-Protokoll. Nach der Fehlersuche wieder ausschalten, das Protokoll wächst schnell."
         }
       }

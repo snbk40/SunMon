@@ -64,8 +64,8 @@ is A and B being swapped.
 3. Go to **Settings > Devices & services > Add integration** and search for
    **SunMon**.
 4. Choose the serial port of the adapter, the number of channels and the update
-   interval, and whether to read yields. Everything except the serial port can
-   be changed later with the **Configure** button.
+   interval. Everything except the serial port can be changed later with the
+   **Configure** button.
 
 The dialog tests the connection before it creates the integration. If the
 serial port opens but the SolarCount does not answer, you can try again, change
@@ -85,7 +85,6 @@ when the adapter is replugged.
 | Serial port | first port found | the USB to RS485 adapter |
 | Number of channels | 6 | how many SolarCount channels to read, starting with the first |
 | Update interval | 10 s | how often the SolarCount is read, 5 to 3600 seconds |
-| Read yields | on | also read the yields, once a minute |
 | Log serial traffic (TRACE) | off | write every byte on the line to the log, see [Logging](#logging) |
 
 ## What is read
@@ -138,8 +137,7 @@ disturbance does not show up as a gap.
 - A sum is *unknown* while any of its channels is unknown: a sum over only some
   of the channels would look like a real drop. A channel that is being held
   after a fault counts with its held value.
-- The yield sums exist only with **Read yields** switched on. There is no
-  sum of the voltages.
+- There is no sum of the voltages.
 
 ## Total power generated
 
@@ -165,8 +163,7 @@ next full hour.
 
 ## Yields
 
-With **Read yields** switched on (the default), SunMon also reads, for each
-channel:
+SunMon also reads, once a minute, for each channel:
 
 | Sensor | Unit | What the SolarCount is asked for |
 | --- | --- | --- |
@@ -192,8 +189,7 @@ channel:
 - Problems with the yields never stop the power readings. If the SolarCount does
   not answer the clock or a yield query, the round ends there, the yields not
   yet read are treated as failed, and the next round tries again. This costs up
-  to 2 seconds once a minute; switch **Read yields** off if your SolarCount
-  never answers these queries.
+  to 2 seconds once a minute.
 - SunMon waits 300 ms before each yield query. A SolarCount was seen to
   ignore a yield query sent right after the clock answer. With six channels
   the 24 queries make a yield round take at least 7 seconds; the power
@@ -203,8 +199,8 @@ channel:
 
 Five diagnostic sensors count the traffic on the RS485 line. One count is one
 request, so a healthy cycle with six channels adds 7 (the init and six
-channels). With yields switched on, a round adds 25 more once a minute (the
-clock and four yields per channel).
+channels). The yield round adds 25 more once a minute (the clock and four
+yields per channel).
 
 | Sensor | Counts up when |
 | --- | --- |
@@ -245,7 +241,7 @@ Five more diagnostic sensors show how much traffic goes over the line.
   receiving share one pair of wires. At 57600 baud with 8N1 the line carries
   5760 bytes per second.
 - In the first minute after a start, the average is taken over the time so far.
-- With the defaults (six channels, 10 seconds, yields on) expect about 12 B/s
+- With the defaults (six channels, 10 seconds) expect about 12 B/s
   sent, 19 B/s received and a bus load of about 0.5 %.
 - Like the counters, these sensors stay available and keep updating while the
   SolarCount does not answer: sending goes on, receiving drops to zero. They

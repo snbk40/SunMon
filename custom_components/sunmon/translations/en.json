@@ -8,14 +8,12 @@
           "serial_port": "Serial port",
           "channels": "Number of channels",
           "scan_interval": "Update interval",
-          "read_yields": "Read yields",
           "trace_serial": "Log serial traffic (TRACE)"
         },
         "data_description": {
           "serial_port": "The USB to RS485 adapter. Prefer the /dev/serial/by-id/... path, it stays the same after replugging.",
           "channels": "How many SolarCount channels to read, starting with the first.",
           "scan_interval": "How often the SolarCount is read.",
-          "read_yields": "Also reads the yield of the previous day, the previous hour, the previous month and the previous year of each channel, once a minute. Switch it off if your SolarCount does not answer these queries.",
           "trace_serial": "Writes every byte sent and received to the Home Assistant log at level TRACE. Switch it off again after troubleshooting, it fills the log quickly."
         }
       },
@@ -44,13 +42,11 @@
         "data": {
           "channels": "Number of channels",
           "scan_interval": "Update interval",
-          "read_yields": "Read yields",
           "trace_serial": "Log serial traffic (TRACE)"
         },
         "data_description": {
           "channels": "How many SolarCount channels to read, starting with the first.",
           "scan_interval": "How often the SolarCount is read.",
-          "read_yields": "Also reads the yield of the previous day, the previous hour, the previous month and the previous year of each channel, once a minute. Switch it off if your SolarCount does not answer these queries.",
           "trace_serial": "Writes every byte sent and received to the Home Assistant log at level TRACE. Switch it off again after troubleshooting, it fills the log quickly."
         }
       }

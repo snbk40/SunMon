@@ -26,12 +26,10 @@ from .api import (
 )
 from .const import (
     CONF_CHANNELS,
-    CONF_READ_YIELDS,
     CONF_SCAN_INTERVAL,
     CONF_SERIAL_PORT,
     CONF_TRACE_SERIAL,
     DEFAULT_CHANNELS,
-    DEFAULT_READ_YIELDS,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SERIAL_PORT,
     DEFAULT_TITLE,
@@ -90,9 +88,6 @@ class SunMonConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_SERIAL_PORT: user_input[CONF_SERIAL_PORT].strip(),
                 CONF_CHANNELS: int(user_input[CONF_CHANNELS]),
                 CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                CONF_READ_YIELDS: bool(
-                    user_input.get(CONF_READ_YIELDS, DEFAULT_READ_YIELDS)
-                ),
                 CONF_TRACE_SERIAL: bool(user_input.get(CONF_TRACE_SERIAL, False)),
             }
             self._async_abort_entries_match({CONF_SERIAL_PORT: data[CONF_SERIAL_PORT]})
@@ -131,9 +126,6 @@ class SunMonConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
                 ): _SCAN_INTERVAL_SELECTOR,
-                vol.Required(
-                    CONF_READ_YIELDS, default=DEFAULT_READ_YIELDS
-                ): selector.BooleanSelector(),
                 vol.Required(
                     CONF_TRACE_SERIAL, default=False
                 ): selector.BooleanSelector(),
@@ -175,7 +167,7 @@ class SunMonConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SunMonOptionsFlow(OptionsFlow):
-    """Change channels, interval, yield reading and traffic logging after setup."""
+    """Change channels, interval and traffic logging after setup."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -186,7 +178,6 @@ class SunMonOptionsFlow(OptionsFlow):
                 data={
                     CONF_CHANNELS: int(user_input[CONF_CHANNELS]),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                    CONF_READ_YIELDS: bool(user_input[CONF_READ_YIELDS]),
                     CONF_TRACE_SERIAL: bool(user_input[CONF_TRACE_SERIAL]),
                 }
             )
@@ -207,13 +198,6 @@ class SunMonOptionsFlow(OptionsFlow):
                         entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                     ),
                 ): _SCAN_INTERVAL_SELECTOR,
-                vol.Required(
-                    CONF_READ_YIELDS,
-                    default=entry.options.get(
-                        CONF_READ_YIELDS,
-                        entry.data.get(CONF_READ_YIELDS, DEFAULT_READ_YIELDS),
-                    ),
-                ): selector.BooleanSelector(),
                 vol.Required(
                     CONF_TRACE_SERIAL,
                     default=entry.options.get(
