@@ -134,6 +134,9 @@
       },
       "rs485_bus_load": {
         "name": "RS485 Buslast"
+      },
+      "rs485_error_rate": {
+        "name": "RS485 Kommunikationsfehlerrate"
       }
     }
   }

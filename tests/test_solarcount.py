@@ -520,6 +520,39 @@ class Counters(unittest.TestCase):
         client.read()
         self.assertStats(client, requests=7, read_ok=6, crc_errors=1)
 
+    def test_error_rate_is_unknown_before_the_first_request(self):
+        self.assertIsNone(api.SolarCountClient("/dev/does-not-exist").stats.error_rate)
+
+    def test_error_rate_is_zero_on_a_healthy_line(self):
+        client = self.client(FakeSolarCount(WATTS, VOLTS))
+        client.read()
+        self.assertEqual(client.stats.error_rate, 0.0)
+
+    def test_error_rate_counts_every_kind_of_failure(self):
+        client = api.SolarCountClient("/dev/does-not-exist")
+        client._counters.update(
+            requests=10, read_ok=6, crc_errors=2, no_response=1, unexpected=1
+        )
+        self.assertEqual(client.stats.error_rate, 40.0)
+
+    def test_error_rate_leaves_out_requests_without_outcome(self):
+        client = api.SolarCountClient("/dev/does-not-exist")
+        # 3 requests, one cut short by a failing serial port.
+        client._counters.update(requests=3, read_ok=1, crc_errors=1)
+        self.assertEqual(client.stats.error_rate, 50.0)
+
+    def test_error_rate_is_rounded_to_two_decimals(self):
+        client = api.SolarCountClient("/dev/does-not-exist")
+        client._counters.update(requests=7, read_ok=6, crc_errors=1)
+        self.assertEqual(client.stats.error_rate, 14.29)
+
+    def test_error_rate_with_crc_error_and_reset(self):
+        client = self.client(FakeSolarCount(WATTS, VOLTS, bad_crc_channels=(1,)))
+        client.read()
+        self.assertEqual(client.stats.error_rate, 14.29)  # 1 of 7
+        client.reset_stats()
+        self.assertIsNone(client.stats.error_rate)
+
     def test_stats_are_a_snapshot(self):
         client = self.client(FakeSolarCount(WATTS, VOLTS), channels=1)
         before = client.stats

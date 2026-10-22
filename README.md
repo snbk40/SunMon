@@ -222,10 +222,25 @@ yields per channel).
 - The connection test in the setup dialog is not counted, and neither is a
   serial port that cannot be opened.
 - The **Clear all diagnostics to 0** button sets the five counters, the bytes
-  sent and received, both throughputs and the bus load to 0. If a cycle is
+  sent and received, both throughputs and the bus load to 0, and makes the
+  error rate unknown until the next request. If a cycle is
   running, it waits for the cycle to finish first. The averages then start over
   as after a restart. Total power generated and the Values held indicator are
   not affected.
+
+### RS485 communication error rate
+
+One more diagnostic sensor, **RS485 communication error rate**, shows in percent
+how many requests failed: CRC errors, no response errors and unexpected
+responses together, as a share of all requests that ended in one of the four
+outcomes.
+
+- It covers the same time as the counters: since Home Assistant started, the
+  integration was reloaded or the counters were cleared to 0.
+- It is unknown until the first request has an outcome.
+- Requests cut short by a failing serial port are left out, as they have no
+  outcome.
+- A silent SolarCount drives it towards 100 %, a healthy line keeps it at 0 %.
 
 ## RS485 throughput
 

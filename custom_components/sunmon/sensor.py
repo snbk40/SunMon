@@ -158,7 +158,7 @@ YIELD_SUMS: tuple[SunMonSumDescription, ...] = (
 class SunMonCounterDescription(SensorEntityDescription):
     """Describes an RS485 counter and how to read it from the statistics."""
 
-    value_fn: Callable[[SolarCountStats], float]
+    value_fn: Callable[[SolarCountStats], float | None]
 
 
 COUNTERS: tuple[SunMonCounterDescription, ...] = (
@@ -233,6 +233,14 @@ COUNTERS: tuple[SunMonCounterDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
         value_fn=lambda stats: stats.bus_load,
+    ),
+    SunMonCounterDescription(
+        key="rs485_error_rate",
+        translation_key="rs485_error_rate",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        value_fn=lambda stats: stats.error_rate,
     ),
 )
 
@@ -401,6 +409,6 @@ class SunMonCounter(SensorEntity):
         )
 
     @property
-    def native_value(self) -> float:
-        """Return the current value."""
+    def native_value(self) -> float | None:
+        """Return the current value, or None if it is not known yet."""
         return self.entity_description.value_fn(self._coordinator.client.stats)

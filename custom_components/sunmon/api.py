@@ -213,6 +213,9 @@ class SolarCountStats:
     send_rate: float = 0.0  # B/s, average over the last minute
     receive_rate: float = 0.0  # B/s, average over the last minute
     bus_load: float = 0.0  # % of the bus capacity, both directions together
+    # % of the requests with an outcome that failed (CRC error, no response or
+    # unexpected response). None until the first request has an outcome.
+    error_rate: float | None = None
 
 
 class TrafficMeter:
@@ -727,13 +730,21 @@ class SolarCountClient:
     def stats(self) -> SolarCountStats:
         """Return the current counters. The setup probe is not counted."""
         send_rate, receive_rate = self.traffic.rates()
+        counters = self._counters
+        errors = (
+            counters["crc_errors"] + counters["no_response"] + counters["unexpected"]
+        )
+        # Requests cut short by a failing serial port have no outcome and are
+        # left out, so they neither raise nor lower the rate.
+        finished = counters["read_ok"] + errors
         return SolarCountStats(
-            **self._counters,
+            **counters,
             bytes_sent=self.traffic.bytes_sent,
             bytes_received=self.traffic.bytes_received,
             send_rate=round(send_rate, 1),
             receive_rate=round(receive_rate, 1),
             bus_load=round((send_rate + receive_rate) / BUS_CAPACITY * 100, 2),
+            error_rate=round(errors / finished * 100, 2) if finished else None,
         )
 
     def reset_stats(self) -> None:
