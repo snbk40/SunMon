@@ -105,6 +105,8 @@ HOLD_TIME = 60.0
 
 # Throughput is averaged over this window.
 THROUGHPUT_WINDOW = 60.0
+# The error rate is taken over the requests of this window.
+ERROR_RATE_WINDOW = 600.0
 # At 57600 baud with 8N1 every byte takes 10 bits on the line. RS485 is half
 # duplex, so sending and receiving share this capacity.
 BUS_CAPACITY = 57600 / 10  # bytes per second
@@ -213,8 +215,8 @@ class SolarCountStats:
     send_rate: float = 0.0  # B/s, average over the last minute
     receive_rate: float = 0.0  # B/s, average over the last minute
     bus_load: float = 0.0  # % of the bus capacity, both directions together
-    # % of the requests with an outcome that failed (CRC error, no response or
-    # unexpected response). None until the first request has an outcome.
+    # % of the requests with an outcome in the last 10 minutes that failed (CRC
+    # error, no response or unexpected response). None if there were none.
     error_rate: float | None = None
 
 
@@ -271,6 +273,54 @@ class TrafficMeter:
             received = sum(event[2] for event in self._events)
         span = max(min(now - self._start, self._window), 1.0)
         return sent / span, received / span
+
+
+class ErrorRateMeter:
+    """Remembers the outcome of every request for a window of time.
+
+    Only requests with an outcome are recorded: those cut short by a failing
+    serial port neither raise nor lower the rate.
+    """
+
+    def __init__(
+        self,
+        window: float = ERROR_RATE_WINDOW,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        """Start with no outcomes."""
+        self._window = window
+        self._clock = clock
+        self._events: deque[tuple[float, bool]] = deque()
+        self._failed = 0
+        self._lock = threading.Lock()
+
+    def record(self, failed: bool) -> None:
+        """Record the outcome of one request."""
+        now = self._clock()
+        with self._lock:
+            self._events.append((now, failed))
+            self._failed += failed
+            self._drop_old(now)
+
+    def reset(self) -> None:
+        """Forget every outcome."""
+        with self._lock:
+            self._events.clear()
+            self._failed = 0
+
+    def rate(self) -> float | None:
+        """Return the failed requests of the window in %, or None if none."""
+        now = self._clock()
+        with self._lock:
+            self._drop_old(now)
+            if not self._events:
+                return None
+            return self._failed / len(self._events) * 100
+
+    def _drop_old(self, now: float) -> None:
+        while self._events and self._events[0][0] <= now - self._window:
+            _, failed = self._events.popleft()
+            self._failed -= failed
 
 
 def crc16(data: bytes) -> int:
@@ -722,6 +772,7 @@ class SolarCountClient:
         self._serial: _SerialPort | None = None
         self._lock = threading.Lock()
         self.traffic = TrafficMeter()
+        self.errors = ErrorRateMeter()
         self._counters = dict.fromkeys(
             ("requests", "read_ok", "crc_errors", "no_response", "unexpected"), 0
         )
@@ -730,21 +781,15 @@ class SolarCountClient:
     def stats(self) -> SolarCountStats:
         """Return the current counters. The setup probe is not counted."""
         send_rate, receive_rate = self.traffic.rates()
-        counters = self._counters
-        errors = (
-            counters["crc_errors"] + counters["no_response"] + counters["unexpected"]
-        )
-        # Requests cut short by a failing serial port have no outcome and are
-        # left out, so they neither raise nor lower the rate.
-        finished = counters["read_ok"] + errors
+        error_rate = self.errors.rate()
         return SolarCountStats(
-            **counters,
+            **self._counters,
             bytes_sent=self.traffic.bytes_sent,
             bytes_received=self.traffic.bytes_received,
             send_rate=round(send_rate, 1),
             receive_rate=round(receive_rate, 1),
             bus_load=round((send_rate + receive_rate) / BUS_CAPACITY * 100, 2),
-            error_rate=round(errors / finished * 100, 2) if finished else None,
+            error_rate=None if error_rate is None else round(error_rate, 2),
         )
 
     def reset_stats(self) -> None:
@@ -756,6 +801,7 @@ class SolarCountClient:
             for name in self._counters:
                 self._counters[name] = 0
             self.traffic.reset()
+            self.errors.reset()
 
     def close(self) -> None:
         """Close the serial port."""
@@ -945,6 +991,7 @@ class SolarCountClient:
                 self._counters["requests"] += 1
                 if outcome:
                     self._counters[outcome] += 1
+                    self.errors.record(outcome != "read_ok")
 
     def _wait_for_response(self, find: Callable[[bytes], bytes | None]) -> bytes:
         """Collect received bytes until ``find`` sees a response frame."""

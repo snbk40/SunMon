@@ -407,6 +407,61 @@ class TraceLogging(unittest.TestCase):
 
 
 @unittest.skipUnless(hasattr(os, "ttyname"), "needs a POSIX system")
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+class ErrorRate(unittest.TestCase):
+    def meter(self):
+        clock = FakeClock()
+        return api.ErrorRateMeter(window=600, clock=clock), clock
+
+    def test_unknown_without_requests(self):
+        meter, _ = self.meter()
+        self.assertIsNone(meter.rate())
+
+    def test_share_of_failed_requests(self):
+        meter, _ = self.meter()
+        for failed in (False, True, False, False, True):
+            meter.record(failed)
+        self.assertEqual(meter.rate(), 40.0)
+
+    def test_window_is_ten_minutes_by_default(self):
+        self.assertEqual(api.ERROR_RATE_WINDOW, 600)
+
+    def test_old_requests_drop_out(self):
+        meter, clock = self.meter()
+        meter.record(True)
+        meter.record(True)
+        clock.now += 300
+        meter.record(False)
+        self.assertAlmostEqual(meter.rate(), 200 / 3)
+        clock.now += 300  # the two failures are now 10 minutes old
+        self.assertEqual(meter.rate(), 0.0)
+        clock.now += 300
+        self.assertIsNone(meter.rate())
+
+    def test_old_requests_are_dropped_while_recording(self):
+        meter, clock = self.meter()
+        for _ in range(100):
+            meter.record(True)
+            clock.now += 60
+        self.assertLessEqual(len(meter._events), 10)
+        self.assertEqual(meter.rate(), 100.0)
+
+    def test_reset_forgets_everything(self):
+        meter, _ = self.meter()
+        meter.record(True)
+        meter.reset()
+        self.assertIsNone(meter.rate())
+        meter.record(False)
+        self.assertEqual(meter.rate(), 0.0)
+
+
 class Counters(unittest.TestCase):
     def client(self, device, channels=6):
         client = api.SolarCountClient(
@@ -521,36 +576,28 @@ class Counters(unittest.TestCase):
         self.assertStats(client, requests=7, read_ok=6, crc_errors=1)
 
     def test_error_rate_is_unknown_before_the_first_request(self):
-        self.assertIsNone(api.SolarCountClient("/dev/does-not-exist").stats.error_rate)
+        client = api.SolarCountClient("/dev/does-not-exist")
+        self.assertIsNone(client.stats.error_rate)
+        # A serial port that cannot be opened is no outcome either.
+        with self.assertRaises(api.SolarCountConnectionError):
+            client.read()
+        self.assertIsNone(client.stats.error_rate)
 
     def test_error_rate_is_zero_on_a_healthy_line(self):
         client = self.client(FakeSolarCount(WATTS, VOLTS))
         client.read()
         self.assertEqual(client.stats.error_rate, 0.0)
 
-    def test_error_rate_counts_every_kind_of_failure(self):
-        client = api.SolarCountClient("/dev/does-not-exist")
-        client._counters.update(
-            requests=10, read_ok=6, crc_errors=2, no_response=1, unexpected=1
-        )
-        self.assertEqual(client.stats.error_rate, 40.0)
-
-    def test_error_rate_leaves_out_requests_without_outcome(self):
-        client = api.SolarCountClient("/dev/does-not-exist")
-        # 3 requests, one cut short by a failing serial port.
-        client._counters.update(requests=3, read_ok=1, crc_errors=1)
-        self.assertEqual(client.stats.error_rate, 50.0)
-
-    def test_error_rate_is_rounded_to_two_decimals(self):
-        client = api.SolarCountClient("/dev/does-not-exist")
-        client._counters.update(requests=7, read_ok=6, crc_errors=1)
-        self.assertEqual(client.stats.error_rate, 14.29)
-
     def test_error_rate_with_crc_error_and_reset(self):
         client = self.client(FakeSolarCount(WATTS, VOLTS, bad_crc_channels=(1,)))
         client.read()
         self.assertEqual(client.stats.error_rate, 14.29)  # 1 of 7
         client.reset_stats()
+        self.assertIsNone(client.stats.error_rate)
+
+    def test_error_rate_leaves_out_the_setup_probe(self):
+        client = self.client(FakeSolarCount(WATTS, VOLTS, bad_crc_channels=(0,)))
+        client.probe()
         self.assertIsNone(client.stats.error_rate)
 
     def test_stats_are_a_snapshot(self):

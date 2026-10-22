@@ -233,14 +233,17 @@ yields per channel).
 One more diagnostic sensor, **RS485 communication error rate**, shows in percent
 how many requests failed: CRC errors, no response errors and unexpected
 responses together, as a share of all requests that ended in one of the four
-outcomes.
+outcomes in the **last 10 minutes**.
 
-- It covers the same time as the counters: since Home Assistant started, the
-  integration was reloaded or the counters were cleared to 0.
-- It is unknown until the first request has an outcome.
+- Older requests drop out, so the rate goes back to 0 % 10 minutes after the
+  last error and reacts to a new problem within one cycle.
+- It is unknown while there was no request with an outcome in the last 10
+  minutes, for example right after a start or after clearing the counters.
 - Requests cut short by a failing serial port are left out, as they have no
   outcome.
-- A silent SolarCount drives it towards 100 %, a healthy line keeps it at 0 %.
+- With six channels and an update interval of 10 seconds, about 670 requests
+  fall into the window, so one error shows as about 0.15 %. A SolarCount that
+  stops answering reaches 100 % within 10 minutes.
 
 ## RS485 throughput
 
