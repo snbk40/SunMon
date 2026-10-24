@@ -93,6 +93,18 @@ class FirmwareFrames(unittest.TestCase):
         with self.assertRaises(api.SolarCountError):
             api.parse_channel_response(frame, 0)
 
+    def test_channel_response_must_be_16_bytes(self):
+        # Valid frames with a correct CRC, but 13, 14, 15 and 17 bytes long.
+        # At 13 and 14 bytes the voltage would be read from the CRC.
+        full = h("0087000000ec00")  # channel, power, ?, voltage, ?
+        for data in (full[:4], full[:5], full[:6], full + b"\x00"):
+            frame = response(0xA0, data)
+            self.assertEqual(api.find_response(frame), frame)
+            with self.assertRaises(api.SolarCountUnexpectedResponseError):
+                api.parse_channel_response(frame, 0)
+        self.assertEqual(len(response(0xA0, full)), 16)
+        api.parse_channel_response(response(0xA0, full), 0)
+
 
 def response(command: int, data: bytes) -> bytes:
     body = (

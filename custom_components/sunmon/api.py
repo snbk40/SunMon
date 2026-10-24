@@ -121,6 +121,7 @@ _YIELD_FRAME_LENGTH = 19  # STX up to and including the first ETX
 
 _RESPONSE_HEADER = bytes([STX, ADDR_HOST, ADDR_SOLARCOUNT])
 _MAX_FRAME_LENGTH = 64
+_CHANNEL_FRAME_LENGTH = 16  # STX up to and including ETX
 
 
 class SolarCountError(Exception):
@@ -385,7 +386,11 @@ def check_response(frame: bytes, command: int, data: bytes = b"") -> None:
         raise SolarCountUnexpectedResponseError(
             f"not a full time response: {frame.hex(' ')}"
         )
-    if command == CMD_CHANNEL and (len(frame) < 13 or frame[6] != data[0]):
+    # A channel answer is always 16 bytes (length field 0A). A shorter frame
+    # would put the voltage at offset 11 into the CRC.
+    if command == CMD_CHANNEL and (
+        len(frame) != _CHANNEL_FRAME_LENGTH or frame[6] != data[0]
+    ):
         raise SolarCountUnexpectedResponseError(
             f"not a full response for channel {data[0]}: {frame.hex(' ')}"
         )

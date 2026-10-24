@@ -114,6 +114,9 @@ Answer:
 | 11 | voltage | `EC` | volts, 8 bit: `0xEC` = **236 V** |
 | 12 | unknown | `00` | always zero so far |
 
+The answer is always 16 bytes long (length field `0A 00`). SunMon rejects a
+channel answer of any other length as unexpected, even with a correct CRC.
+
 The firmware keeps the power unsigned. SunMon reads it as signed
 (−32768…32767 W), so a negative power arrives as a negative number.
 
@@ -373,7 +376,7 @@ flowchart TD
     etx -- no --> skip
     etx -- yes --> crc{CRC16<br/>correct?}
     crc -- no --> crcerr([CRC error])
-    crc -- yes --> cmd{cmd = request + 80<br/>and channel matches?}
+    crc -- yes --> cmd{cmd = request + 80,<br/>channel and length match?}
     cmd -- no --> unexp([Unexpected answer])
     cmd -- yes --> ok([Valid answer])
     skip --> find
