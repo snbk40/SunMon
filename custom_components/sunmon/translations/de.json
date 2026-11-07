@@ -59,8 +59,8 @@
       }
     },
     "binary_sensor": {
-      "values_unavailable": {
-        "name": "Werte nicht verfügbar",
+      "values_status": {
+        "name": "Status der Werte",
         "state_attributes": {
           "channels": {
             "name": "Kanäle"
