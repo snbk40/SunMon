@@ -1,4 +1,4 @@
-"""Binary sensor platform: shows when values are held after a fault."""
+"""Binary sensor platform: shows when values are unavailable after repeated faults."""
 
 from __future__ import annotations
 
@@ -24,7 +24,11 @@ async def async_setup_entry(
 
 
 class SunMonValuesHeld(SunMonEntity, BinarySensorEntity):
-    """On while at least one shown value is a held one, not a fresh reading."""
+    """On while a value is unavailable because it failed too often in a row.
+
+    Up to HELD_READS failed reads are bridged with the last good value and
+    leave this off.
+    """
 
     _attr_translation_key = "values_held"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -36,10 +40,12 @@ class SunMonValuesHeld(SunMonEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        """Return true if any channel shows a held value."""
-        return bool(self.coordinator.held_channels)
+        """Return true if any channel has a value that is unavailable."""
+        return bool(self.coordinator.problem_channels)
 
     @property
     def extra_state_attributes(self) -> dict[str, list[int]]:
         """Return the affected channels, numbered 1 to 6 as in the names."""
-        return {"channels": [channel + 1 for channel in self.coordinator.held_channels]}
+        return {
+            "channels": [channel + 1 for channel in self.coordinator.problem_channels]
+        }

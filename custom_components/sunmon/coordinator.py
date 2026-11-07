@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
-    HOLD_TIME,
+    HELD_READS,
     EnergyIntegrator,
     SolarCountClient,
     SolarCountData,
@@ -49,14 +49,14 @@ class SunMonCoordinator(DataUpdateCoordinator[SolarCountData]):
         self.client = client
         self._stats_listeners: set[Callable[[], None]] = set()
         self._hold = ValueHold()
-        self._holding = False
+        self._problem_channels: tuple[int, ...] = ()
         # Integrates the total power of every completed cycle into kWh.
         self.energy = EnergyIntegrator()
 
     @property
-    def held_channels(self) -> tuple[int, ...]:
-        """Channels whose current values are held after a fault (0 to 5)."""
-        return self._hold.held_channels
+    def problem_channels(self) -> tuple[int, ...]:
+        """Channels with a value that is unavailable after repeated faults (0 to 5)."""
+        return self._hold.problem_channels
 
     @callback
     def async_add_stats_listener(
@@ -83,32 +83,43 @@ class SunMonCoordinator(DataUpdateCoordinator[SolarCountData]):
     async def _async_update_data(self) -> SolarCountData:
         """Read all channels. The serial I/O blocks, so it runs in a thread.
 
-        After a fault, the last good values are kept for up to a minute.
+        A value that cannot be read keeps its last good value for up to
+        HELD_READS failed reads in a row, then it is unavailable. A failed
+        cycle only fails the update before the first good one, so that the
+        indicator of the faulty values stays available.
         """
         try:
             data = await self.hass.async_add_executor_job(self.client.read)
         except SolarCountError as err:
             self.energy.interrupt()
             self._async_notify_stats_listeners()
-            held = self._hold.after_failure()
-            if held is None:
-                self._holding = False
+            if self.data is None:
                 raise UpdateFailed(str(err)) from err
-            if not self._holding:
-                self._holding = True
-                LOGGER.warning(
-                    "Reading failed, keeping the last values for up to %d seconds: %s",
-                    HOLD_TIME,
-                    err,
-                )
-            return held
-        if self._holding:
-            self._holding = False
-            LOGGER.info("Reading works again")
-        self._async_notify_stats_listeners()
-        data = self._hold.apply(data)
-        self.energy.add(time.monotonic(), data.total_power)
+            LOGGER.debug("Reading failed: %s", err)
+            data = self._hold.after_failure(self.client.yields, self.client.yield_round)
+        else:
+            self._async_notify_stats_listeners()
+            data = self._hold.apply(data)
+            self.energy.add(time.monotonic(), data.total_power)
+        self._log_problems()
         return data
+
+    def _log_problems(self) -> None:
+        """Log when channels become unavailable, and when they are back."""
+        problems = self._hold.problem_channels
+        if problems == self._problem_channels:
+            return
+        new = sorted(set(problems) - set(self._problem_channels))
+        if new:
+            LOGGER.warning(
+                "Channel %s could not be read %d times in a row, its values are"
+                " unavailable until it can be read again",
+                ", ".join(str(channel + 1) for channel in new),
+                HELD_READS + 1,
+            )
+        if not problems:
+            LOGGER.info("All values can be read again")
+        self._problem_channels = problems
 
     @callback
     def _async_notify_stats_listeners(self) -> None:

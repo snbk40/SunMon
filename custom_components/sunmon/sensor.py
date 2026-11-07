@@ -97,8 +97,8 @@ YIELDS: tuple[SunMonYieldDescription, ...] = (
 def _sum(values: Iterable[int | None]) -> int | None:
     """Add up the values of all channels.
 
-    The sum is unknown if any channel is: a sum over only some of the channels
-    would look like a real drop.
+    The sum is unavailable if any channel's value is: a sum over only some of
+    the channels would look like a real drop.
     """
     total = 0
     for value in values:
@@ -300,6 +300,11 @@ class SunMonSensor(SunMonEntity, SensorEntity):
             return None
         return self.entity_description.value_fn(reading)
 
+    @property
+    def available(self) -> bool:
+        """Unavailable while the value cannot be read."""
+        return super().available and self.native_value is not None
+
 
 class SunMonYieldSensor(SunMonEntity, SensorEntity):
     """One yield value of one SolarCount channel."""
@@ -326,6 +331,11 @@ class SunMonYieldSensor(SunMonEntity, SensorEntity):
             return None
         return self.entity_description.value_fn(yields[self._channel])
 
+    @property
+    def available(self) -> bool:
+        """Unavailable while the value cannot be read."""
+        return super().available and self.native_value is not None
+
 
 class SunMonSumSensor(SunMonEntity, SensorEntity):
     """The sum of one value over all configured channels."""
@@ -343,8 +353,13 @@ class SunMonSumSensor(SunMonEntity, SensorEntity):
 
     @property
     def native_value(self) -> int | None:
-        """Return the sum, or None if a channel's value is unknown."""
+        """Return the sum, or None if a channel's value is unavailable."""
         return self.entity_description.value_fn(self.coordinator.data)
+
+    @property
+    def available(self) -> bool:
+        """Unavailable while the value cannot be read."""
+        return super().available and self.native_value is not None
 
 
 class SunMonEnergySensor(SunMonEntity, RestoreSensor):

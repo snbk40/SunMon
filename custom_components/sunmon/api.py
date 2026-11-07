@@ -100,8 +100,9 @@ RESPONSE_TIMEOUT = 2.0  # SOLAR_FSM_STUCK_TIMEOUT
 REQUEST_INTERVAL = 0.5  # SOLAR_READ_DELAY, pause before each channel request
 YIELD_INTERVAL = 60.0  # SOLAR_TIME_CHECK_INTERVAL, time between yield rounds
 
-# How long the last good value of a channel is kept after a fault.
-HOLD_TIME = 60.0
+# How many failed reads in a row the last good value bridges. From the next
+# failed read on, the value is unavailable and counts as a problem.
+HELD_READS = 3
 
 # Throughput is averaged over this window.
 THROUGHPUT_WINDOW = 60.0
@@ -181,11 +182,14 @@ class SolarCountData:
     """One measuring cycle. A channel is None if its response was invalid.
 
     ``yields`` is empty unless the client reads yields; it then holds the
-    values of the most recent yield round.
+    values of the most recent yield round. ``yield_round`` numbers that round,
+    so a round that is passed on in several cycles is only counted once. None
+    means the yields are new in every cycle.
     """
 
     channels: tuple[ChannelReading | None, ...]
     yields: tuple[ChannelYield, ...] = ()
+    yield_round: int | None = None
 
     @property
     def total_power(self) -> int | None:
@@ -615,105 +619,97 @@ class _SerialPort:
 
 
 class ValueHold:
-    """Keeps the last good values of each channel for a while after a fault.
+    """Bridges a few failed reads of a value with its last good one.
 
-    A value that cannot be read is replaced by the last one that could, for up
-    to ``hold_time`` seconds counted from the first failed read. After that it
-    is None until it can be read again. This is tracked separately for the
-    reading (power and voltage) and for each yield of every channel.
+    Counted separately for the reading (power and voltage) and for each yield
+    of every channel. Up to ``held_reads`` failed reads in a row, the value is
+    replaced by the last one that could be read. From the next failed read on,
+    it is None and counts as a problem until it can be read again. A yield is
+    read once per yield round, so it is counted once per round, not once per
+    cycle.
     """
 
-    def __init__(
-        self,
-        hold_time: float = HOLD_TIME,
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None:
+    def __init__(self, held_reads: int = HELD_READS) -> None:
         """Start with nothing held."""
-        self._hold_time = hold_time
-        self._clock = clock
+        self._held_reads = held_reads
         self._values: dict[tuple[str, int], Any] = {}
-        self._fault_since: dict[tuple[str, int], float] = {}
+        self._failures: dict[tuple[str, int], int] = {}
+        self._problems: set[tuple[str, int]] = set()
         self._channels = 0
-        self._yields = 0
-        self._held: set[int] = set()
+        self._yield_round: int | None = None
+        self._yields: tuple[ChannelYield, ...] = ()
 
     @property
-    def held_channels(self) -> tuple[int, ...]:
-        """Channels that had a held value in the most recent result."""
-        return tuple(sorted(self._held))
+    def problem_channels(self) -> tuple[int, ...]:
+        """Channels with a value that failed more than ``held_reads`` times in a row."""
+        return tuple(sorted({channel for _, channel in self._problems}))
 
     def apply(self, data: SolarCountData) -> SolarCountData:
         """Fill the gaps in the result of a cycle with held values."""
-        now = self._clock()
-        self._held = set()
         self._channels = len(data.channels)
-        self._yields = len(data.yields)
+        channels = tuple(
+            self._resolve(("reading", channel), reading)
+            for channel, reading in enumerate(data.channels)
+        )
         return SolarCountData(
-            channels=tuple(
-                self._resolve(("reading", channel), reading, now)
-                for channel, reading in enumerate(data.channels)
-            ),
-            yields=tuple(
-                ChannelYield(
-                    previous_day=self._resolve(
-                        ("day", channel), item.previous_day, now
-                    ),
-                    previous_hour=self._resolve(
-                        ("hour", channel), item.previous_hour, now
-                    ),
-                    previous_month=self._resolve(
-                        ("month", channel), item.previous_month, now
-                    ),
-                    previous_year=self._resolve(
-                        ("year", channel), item.previous_year, now
-                    ),
-                )
-                for channel, item in enumerate(data.yields)
-            ),
+            channels=channels,
+            yields=self._resolve_yields(data.yields, data.yield_round),
+            yield_round=data.yield_round,
         )
 
-    def after_failure(self) -> SolarCountData | None:
-        """Return the held values after a cycle that failed as a whole.
+    def after_failure(
+        self,
+        yields: tuple[ChannelYield, ...] = (),
+        yield_round: int | None = None,
+    ) -> SolarCountData:
+        """Count a cycle that failed as a whole as a failed read of every channel.
 
-        Returns None once no channel has a reading left to hold.
+        ``yields`` and ``yield_round`` are the client's most recent yield round,
+        which may have run before the cycle failed.
         """
-        now = self._clock()
-        self._held = set()
         channels = tuple(
-            self._resolve(("reading", channel), None, now)
+            self._resolve(("reading", channel), None)
             for channel in range(self._channels)
         )
-        yields = tuple(
-            ChannelYield(
-                previous_day=self._resolve(("day", channel), None, now),
-                previous_hour=self._resolve(("hour", channel), None, now),
-                previous_month=self._resolve(("month", channel), None, now),
-                previous_year=self._resolve(("year", channel), None, now),
-            )
-            for channel in range(self._yields)
+        return SolarCountData(
+            channels=channels,
+            yields=self._resolve_yields(yields, yield_round),
+            yield_round=yield_round,
         )
-        if all(reading is None for reading in channels):
-            self._held = set()
-            return None
-        return SolarCountData(channels=channels, yields=yields)
 
-    def _resolve[T](
-        self, key: tuple[str, int], value: T | None, now: float
-    ) -> T | None:
-        """Return ``value``, or the held value while its hold time lasts."""
+    def _resolve_yields(
+        self, yields: tuple[ChannelYield, ...], yield_round: int | None
+    ) -> tuple[ChannelYield, ...]:
+        """Count a new yield round; pass on the result of one already counted."""
+        if yield_round is not None and yield_round == self._yield_round:
+            return self._yields
+        self._yield_round = yield_round
+        self._yields = tuple(
+            ChannelYield(
+                previous_day=self._resolve(("day", channel), item.previous_day),
+                previous_hour=self._resolve(("hour", channel), item.previous_hour),
+                previous_month=self._resolve(("month", channel), item.previous_month),
+                previous_year=self._resolve(("year", channel), item.previous_year),
+            )
+            for channel, item in enumerate(yields)
+        )
+        return self._yields
+
+    def _resolve[T](self, key: tuple[str, int], value: T | None) -> T | None:
+        """Return ``value``, or the held value while the failures allow it."""
         if value is not None:
             self._values[key] = value
-            self._fault_since.pop(key, None)
+            self._failures.pop(key, None)
+            self._problems.discard(key)
             return value
-        if key not in self._values:
+        failures = self._failures.get(key, 0) + 1
+        self._failures[key] = failures
+        if failures > self._held_reads:
+            self._values.pop(key, None)
+            self._problems.add(key)
             return None
-        if now - self._fault_since.setdefault(key, now) < self._hold_time:
-            self._held.add(key[1])
-            held: T = self._values[key]
-            return held
-        del self._values[key]
-        del self._fault_since[key]
-        return None
+        held: T | None = self._values.get(key)
+        return held
 
 
 class EnergyIntegrator:
@@ -773,6 +769,7 @@ class SolarCountClient:
         self._yield_interval = yield_interval
         self._yield_query_pause = yield_query_pause
         self._yields: tuple[ChannelYield, ...] = ()
+        self._yield_round = 0
         self._last_yield_round: float | None = None
         self._serial: _SerialPort | None = None
         self._lock = threading.Lock()
@@ -863,7 +860,11 @@ class SolarCountClient:
                 readings.append(None)
         if all(reading is None for reading in readings):
             raise SolarCountError("no channel returned a valid response")
-        return SolarCountData(channels=tuple(readings), yields=self._yields)
+        return SolarCountData(
+            channels=tuple(readings),
+            yields=self._yields,
+            yield_round=self._yield_round,
+        )
 
     def _open(self) -> None:
         if self._serial is None:
@@ -883,6 +884,16 @@ class SolarCountClient:
         except SolarCountUnexpectedResponseError as err:
             # The firmware accepts any answer to the init, so carry on.
             _LOGGER.debug("Init: %s", err)
+
+    @property
+    def yields(self) -> tuple[ChannelYield, ...]:
+        """The yields of the most recent round."""
+        return self._yields
+
+    @property
+    def yield_round(self) -> int:
+        """The number of yield rounds run so far."""
+        return self._yield_round
 
     def _yield_round_is_due(self) -> bool:
         return (
@@ -920,17 +931,20 @@ class SolarCountClient:
             raise
         except SolarCountError as err:
             _LOGGER.debug("Yield round stopped: %s", err)
-        self._yields = tuple(
-            ChannelYield(
-                previous_day=day_value,
-                previous_hour=hour_value,
-                previous_month=month_value,
-                previous_year=year_value,
+        finally:
+            # Also after a lost connection: the yields not read count as failed.
+            self._yields = tuple(
+                ChannelYield(
+                    previous_day=day_value,
+                    previous_hour=hour_value,
+                    previous_month=month_value,
+                    previous_year=year_value,
+                )
+                for day_value, hour_value, month_value, year_value in zip(
+                    days, hours, months, years, strict=True
+                )
             )
-            for day_value, hour_value, month_value, year_value in zip(
-                days, hours, months, years, strict=True
-            )
-        )
+            self._yield_round += 1
 
     def _read_yield(self, period: int, channel: int, value: int) -> int | None:
         """Read one yield. Returns None if the response is invalid."""

@@ -28,8 +28,8 @@ For all channels together:
 For troubleshooting:
 
 - RS485 counters, throughput and bus load
-- a **Values held** indicator that shows when values are being bridged after a
-  fault
+- a **Values held** indicator that shows when values are unavailable because
+  they failed to read more than 3 times in a row
 
 ## Requirements
 
@@ -102,26 +102,33 @@ The device is called **SolarCount**, so the entities are named for example
 
 ## When a read fails
 
-After a fault, the last good values are kept for one minute, so a short
-disturbance does not show up as a gap.
+A value that cannot be read keeps its last good value for up to **3 failed
+reads in a row**, so a short disturbance does not show up as a gap and does not
+count as a problem. From the 4th failed read in a row, the value is
+*unavailable* and the **Values held** indicator turns on.
 
 - **One channel fails** (wrong checksum, or an answer that does not fit the
   request): that channel keeps its last power and voltage, and the other
-  channels keep updating. If it still cannot be read one minute after the first
-  failed read, it shows as *unknown* until it can be read again.
+  channels keep updating.
 - **The whole read fails** (the SolarCount does not answer, or the serial port
-  has a problem): all values are kept and a warning is logged. If reading still
-  fails after one minute, the sensors become *unavailable*.
-- **Yields** are held the same way, each on its own.
-- The minute counts from the first failed read, and every good read ends it.
-- While any value is held, the diagnostic sensor **Values held** is on (shown as
-  "Problem"), and its attribute lists the channels concerned. It goes off when
-  every value is fresh again, or when the minute is over and the value has
-  become unknown.
+  has a problem): this counts as a failed read of every channel.
+- **Yields** are counted the same way, each on its own. They are read once per
+  yield round, about once a minute, so they become unavailable after the 4th
+  failed round, not after the 4th cycle.
+- Failed reads only count in a row: every good read starts the count again.
+- The diagnostic sensor **Values held** stays off (shown as "OK") while values
+  are only bridged. It is on (shown as "Problem") while any value is
+  unavailable after 4 failed reads, and its attribute lists the channels
+  concerned. It goes off again when every such value can be read again.
+- At 4 failed reads a warning is logged, and an info message when everything
+  can be read again. The single failed reads before that are only logged at
+  debug level.
 - The held value itself looks like any other; the sums use held values like
   fresh ones.
-- Nothing is held right after Home Assistant starts, before the first good
-  read.
+- A value that has not been read since Home Assistant started has nothing to
+  hold: it is unavailable from the start and counts as a problem from the 4th
+  failed read. If the very first read after a start fails as a whole, the
+  setup is retried.
 
 ## Sums over all channels
 
@@ -134,9 +141,9 @@ disturbance does not show up as a gap.
 | Sum of all channels yield previous year | none | the previous year's yield of every channel |
 
 - "All channels" means the number of channels set in the dialog.
-- A sum is *unknown* while any of its channels is unknown: a sum over only some
-  of the channels would look like a real drop. A channel that is being held
-  after a fault counts with its held value.
+- A sum is *unavailable* while any of its channels is: a sum over only some of
+  the channels would look like a real drop. A channel that is being held after
+  a fault counts with its held value.
 - There is no sum of the voltages.
 
 ## Total power generated
@@ -148,7 +155,7 @@ cycle before.
 
 - Between two cycles the power is taken to change in a straight line
   (trapezoidal rule), so the result is as exact as the update interval allows.
-- A failed cycle, or one in which the sum of all channels power is unknown,
+- A failed cycle, or one in which the sum of all channels power is unavailable,
   interrupts the counting: the time until the next completed cycle is not
   counted. The time while Home Assistant is not running is not counted either.
 - Negative power counts as zero, so the total never goes down.
@@ -179,13 +186,13 @@ SunMon also reads, once a minute, for each channel:
   first of a month the last day of the month before is asked for, at
   midnight hour 23, and in January month 12.
 - The year query has not been seen in a real exchange yet. If your SolarCount
-  does not answer it, the year sensors stay *unknown*; the other yields and the
+  does not answer it, the year sensors become *unavailable*; the other yields and the
   power readings are not affected.
 - The yields are read once a minute, before the power readings, and keep their
   value in between.
 - A yield whose answer has a wrong checksum, or belongs to another channel,
-  keeps its last value for one minute, which covers one failed round, and then
-  shows as *unknown*.
+  keeps its last value for up to 3 failed rounds in a row and is *unavailable*
+  from the 4th.
 - Problems with the yields never stop the power readings. If the SolarCount does
   not answer the clock or a yield query, the round ends there, the yields not
   yet read are treated as failed, and the next round tries again. This costs up

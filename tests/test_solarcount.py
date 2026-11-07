@@ -853,6 +853,17 @@ class Yields(unittest.TestCase):
         self.assertEqual(second.yields, first.yields)
         self.assertEqual(self.stats(client)[0], (1 + 2 + 2 + 2 + 2 + 3) + 3)
 
+    def test_each_yield_round_gets_a_new_number(self):
+        device = self.device()
+        client = self.client(device, channels=2, yield_interval=3600)
+        self.assertEqual(client.read().yield_round, 1)
+        self.assertEqual(client.read().yield_round, 1)
+        client.close()
+        client = self.client(self.device(), channels=2, yield_interval=0)
+        self.assertEqual([client.read().yield_round for _ in range(3)], [1, 2, 3])
+        self.assertEqual(client.yield_round, 3)
+        self.assertEqual(client.yields, client.read().yields)
+
     def test_yields_are_read_again_when_the_interval_has_passed(self):
         device = self.device()
         client = self.client(device, channels=2, yield_interval=0)
@@ -959,172 +970,160 @@ class Yields(unittest.TestCase):
 
 
 class Hold(unittest.TestCase):
-    """Last good values are kept for a minute after a fault."""
+    """Up to three failed reads in a row are bridged with the last good value."""
 
     def setUp(self):
-        self.now = 1000.0
-        self.hold = api.ValueHold(hold_time=60, clock=lambda: self.now)
+        self.hold = api.ValueHold()
 
-    def data(self, powers, days=None, hours=None, months=None, years=None):
+    def data(self, powers, days=None, hours=None, months=None, years=None, *, rnd=None):
         channels = tuple(
             None if power is None else api.ChannelReading(power, 230)
             for power in powers
         )
         yields = ()
         if days is not None:
+            hours = hours or [6] * len(days)
             months = months or [7] * len(days)
             years = years or [8] * len(days)
             yields = tuple(
                 api.ChannelYield(d, h, m, y)
                 for d, h, m, y in zip(days, hours, months, years, strict=True)
             )
-        return api.SolarCountData(channels=channels, yields=yields)
+        return api.SolarCountData(channels=channels, yields=yields, yield_round=rnd)
 
     def powers(self, data):
         return [None if c is None else c.power for c in data.channels]
 
+    def test_three_reads_are_held(self):
+        self.assertEqual(api.HELD_READS, 3)
+
     def test_good_values_pass_through(self):
         data = self.data([100, 200, 300])
         self.assertEqual(self.hold.apply(data), data)
+        self.assertEqual(self.hold.problem_channels, ())
 
-    def test_failed_channel_keeps_its_last_value_for_a_minute(self):
+    def test_up_to_three_failed_reads_keep_the_last_value_without_a_problem(self):
         self.hold.apply(self.data([100, 200, 300]))
-        for elapsed in (10, 30, 59.9):
-            self.now = 1010 + elapsed
+        for failure in (1, 2, 3):
             held = self.hold.apply(self.data([110, None, 310]))
-            self.assertEqual(self.powers(held), [110, 200, 310], elapsed)
+            self.assertEqual(self.powers(held), [110, 200, 310], failure)
             self.assertEqual(held.channels[1].voltage, 230)
+            self.assertEqual(self.hold.problem_channels, (), failure)
 
-    def test_the_minute_counts_from_the_first_failed_read(self):
+    def test_fourth_failed_read_makes_the_value_unavailable_and_a_problem(self):
         self.hold.apply(self.data([100, 200]))
-        self.now = 1040  # 40 s without a fault do not use up the hold
-        self.hold.apply(self.data([100, 200]))
-        self.now = 1050
-        self.assertEqual(
-            self.powers(self.hold.apply(self.data([100, None]))), [100, 200]
-        )
-        self.now = 1109.9
-        self.assertEqual(
-            self.powers(self.hold.apply(self.data([100, None]))), [100, 200]
-        )
-        self.now = 1110
+        for _ in range(3):
+            self.hold.apply(self.data([100, None]))
         self.assertEqual(
             self.powers(self.hold.apply(self.data([100, None]))), [100, None]
         )
+        self.assertEqual(self.hold.problem_channels, (1,))
+        self.assertEqual(
+            self.powers(self.hold.apply(self.data([100, None]))), [100, None]
+        )
+        self.assertEqual(self.hold.problem_channels, (1,))
 
-    def test_expired_value_stays_unknown_until_read_again(self):
+    def test_good_read_ends_the_problem_and_starts_the_count_again(self):
         self.hold.apply(self.data([100]))
-        self.now = 1010
-        self.hold.apply(self.data([None]))
-        self.now = 1070
-        self.assertEqual(self.powers(self.hold.apply(self.data([None]))), [None])
-        self.now = 1080
-        self.assertEqual(self.powers(self.hold.apply(self.data([None]))), [None])
-        self.now = 1090
+        for _ in range(4):
+            self.hold.apply(self.data([None]))
+        self.assertEqual(self.hold.problem_channels, (0,))
         self.assertEqual(self.powers(self.hold.apply(self.data([150]))), [150])
+        self.assertEqual(self.hold.problem_channels, ())
+        for _ in range(3):
+            self.assertEqual(self.powers(self.hold.apply(self.data([None]))), [150])
+        self.assertEqual(self.hold.problem_channels, ())
 
-    def test_good_read_restarts_the_minute(self):
+    def test_failures_must_be_in_a_row(self):
         self.hold.apply(self.data([100]))
-        self.now = 1050
-        self.hold.apply(self.data([None]))
-        self.now = 1060
-        self.hold.apply(self.data([120]))
-        self.now = 1100
-        self.hold.apply(self.data([None]))  # new fault, 50 s after the first
-        self.now = 1159
-        self.assertEqual(self.powers(self.hold.apply(self.data([None]))), [120])
+        for _ in range(5):
+            self.hold.apply(self.data([None]))
+            self.hold.apply(self.data([None]))
+            self.hold.apply(self.data([120]))
+        self.assertEqual(self.hold.problem_channels, ())
 
-    def test_never_read_channel_has_nothing_to_hold(self):
-        self.assertEqual(self.powers(self.hold.apply(self.data([None, 5]))), [None, 5])
+    def test_never_read_channel_is_unavailable_and_a_problem_after_four_reads(self):
+        for _ in range(3):
+            self.assertEqual(
+                self.powers(self.hold.apply(self.data([None, 5]))), [None, 5]
+            )
+        self.assertEqual(self.hold.problem_channels, ())
+        self.hold.apply(self.data([None, 5]))
+        self.assertEqual(self.hold.problem_channels, (0,))
 
-    def test_channels_are_held_independently(self):
+    def test_channels_are_counted_independently(self):
         self.hold.apply(self.data([100, 200, 300]))
-        self.now = 1030
         self.hold.apply(self.data([None, 200, 300]))
-        self.now = 1070
+        self.hold.apply(self.data([None, 200, 300]))
         self.hold.apply(self.data([None, None, 300]))
-        self.now = 1095  # channel 1 faulted 65 s ago, channel 2 only 25 s ago
-        self.assertEqual(
-            self.powers(self.hold.apply(self.data([None, None, 300]))), [None, 200, 300]
-        )
+        held = self.hold.apply(self.data([None, None, 300]))  # 4th and 2nd failure
+        self.assertEqual(self.powers(held), [None, 200, 300])
+        self.assertEqual(self.hold.problem_channels, (0,))
 
-    def test_yields_are_held_each_on_their_own(self):
-        self.hold.apply(
-            self.data(
-                [1, 2], days=[10, 20], hours=[5, 6], months=[30, 40], years=[50, 60]
-            )
-        )
-        self.now = 1030
-        faulty = self.data(
-            [1, 2],
-            days=[None, 21],
-            hours=[5, None],
-            months=[31, None],
-            years=[None, 61],
-        )
+    def test_yields_are_counted_each_on_their_own(self):
+        self.hold.apply(self.data([1, 2], days=[10, 20], hours=[5, 6]))
+        faulty = self.data([1, 2], days=[None, 21], hours=[5, None])
+        for _ in range(3):
+            held = self.hold.apply(faulty)
+        self.assertEqual(held.yields[0].previous_day, 10)
+        self.assertEqual(held.yields[1].previous_hour, 6)
+        self.assertEqual(self.hold.problem_channels, ())
         held = self.hold.apply(faulty)
-        self.assertEqual(
-            held.yields,
-            (api.ChannelYield(10, 5, 31, 50), api.ChannelYield(21, 6, 40, 61)),
-        )
-        self.now = 1090
-        held = self.hold.apply(faulty)
-        self.assertEqual(
-            held.yields,
-            (api.ChannelYield(None, 5, 31, None), api.ChannelYield(21, None, None, 61)),
-        )
+        self.assertIsNone(held.yields[0].previous_day)
+        self.assertIsNone(held.yields[1].previous_hour)
+        self.assertEqual(held.yields[1].previous_day, 21)
+        self.assertEqual(self.hold.problem_channels, (0, 1))
 
-    def test_failed_cycle_returns_everything_held_for_a_minute(self):
-        self.hold.apply(
-            self.data(
-                [100, 200], days=[10, 20], hours=[5, 6], months=[30, 40], years=[50, 60]
-            )
-        )
-        for elapsed in (10, 40, 69.9):
-            self.now = 1000 + elapsed
-            held = self.hold.after_failure()
-            if elapsed < 10 + 60:
-                self.assertEqual(self.powers(held), [100, 200], elapsed)
-                self.assertEqual(held.yields[1], api.ChannelYield(20, 6, 40, 60))
-        self.now = 1070
-        self.assertIsNone(self.hold.after_failure())
+    def test_a_yield_round_is_counted_once_however_many_cycles_pass_it_on(self):
+        self.hold.apply(self.data([1], days=[10], rnd=1))
+        faulty = self.data([1], days=[None], rnd=2)
+        for _ in range(10):
+            held = self.hold.apply(faulty)
+        self.assertEqual(held.yields[0].previous_day, 10)
+        self.assertEqual(self.hold.problem_channels, ())
+        for rnd in (3, 4):
+            self.hold.apply(self.data([1], days=[None], rnd=rnd))
+        self.assertEqual(self.hold.problem_channels, ())
+        held = self.hold.apply(self.data([1], days=[None], rnd=5))
+        self.assertIsNone(held.yields[0].previous_day)
+        self.assertEqual(self.hold.problem_channels, (0,))
+        held = self.hold.apply(self.data([1], days=[None], rnd=5))
+        self.assertIsNone(held.yields[0].previous_day)
+        self.assertEqual(self.hold.problem_channels, (0,))
 
-    def test_failed_cycle_with_nothing_read_yet(self):
-        self.assertIsNone(self.hold.after_failure())
-
-    def test_failed_cycle_does_not_extend_a_running_hold(self):
+    def test_failed_cycle_counts_as_a_failed_read_of_every_channel(self):
         self.hold.apply(self.data([100, 200]))
-        self.now = 1030
-        self.hold.apply(self.data([None, 200]))  # channel 0 faulted at 1030
-        self.now = 1080
-        self.assertEqual(self.powers(self.hold.after_failure()), [100, 200])
-        self.now = 1095  # channel 0: 65 s, channel 1: 15 s
-        self.assertEqual(self.powers(self.hold.after_failure()), [None, 200])
+        for failure in (1, 2, 3):
+            self.assertEqual(self.powers(self.hold.after_failure()), [100, 200])
+            self.assertEqual(self.hold.problem_channels, (), failure)
+        self.assertEqual(self.powers(self.hold.after_failure()), [None, None])
+        self.assertEqual(self.hold.problem_channels, (0, 1))
+        self.assertEqual(self.powers(self.hold.after_failure()), [None, None])
+        self.assertEqual(
+            self.powers(self.hold.apply(self.data([100, 200]))), [100, 200]
+        )
+        self.assertEqual(self.hold.problem_channels, ())
 
-    def test_reports_which_channels_are_held(self):
-        self.hold.apply(self.data([100, 200, 300], days=[1, 2, 3], hours=[4, 5, 6]))
-        self.assertEqual(self.hold.held_channels, ())
-        self.now = 1010
-        self.hold.apply(self.data([100, None, 300], days=[1, 2, None], hours=[4, 5, 6]))
-        self.assertEqual(self.hold.held_channels, (1, 2))
-        self.now = 1020
-        self.hold.apply(self.data([100, 210, 300], days=[1, 2, None], hours=[4, 5, 6]))
-        self.assertEqual(self.hold.held_channels, (2,))
-        self.now = 1071  # the hold of channel 2's day yield has run out
-        self.hold.apply(self.data([100, 210, 300], days=[1, 2, None], hours=[4, 5, 6]))
-        self.assertEqual(self.hold.held_channels, ())
-
-    def test_failed_cycle_holds_every_channel_until_the_minute_is_over(self):
+    def test_failed_cycle_adds_to_the_failures_of_single_channels(self):
         self.hold.apply(self.data([100, 200]))
-        self.now = 1010
+        self.hold.apply(self.data([None, 200]))
+        self.hold.apply(self.data([None, 200]))
         self.hold.after_failure()
-        self.assertEqual(self.hold.held_channels, (0, 1))
-        self.now = 1070
-        self.assertIsNone(self.hold.after_failure())
-        self.assertEqual(self.hold.held_channels, ())
-        self.now = 1080
-        self.hold.apply(self.data([100, 200]))
-        self.assertEqual(self.hold.held_channels, ())
+        self.assertEqual(self.powers(self.hold.after_failure()), [None, 200])
+        self.assertEqual(self.hold.problem_channels, (0,))
+
+    def test_failed_cycle_counts_a_new_yield_round_only(self):
+        good = self.data([1], days=[10], rnd=1)
+        self.hold.apply(good)
+        for _ in range(6):
+            held = self.hold.after_failure(good.yields, 1)
+        self.assertEqual(held.yields[0].previous_day, 10)
+        self.assertEqual(self.hold.problem_channels, (0,))  # the reading only
+        failed = self.data([None], days=[None]).yields
+        for rnd in (2, 3, 4):
+            held = self.hold.after_failure(failed, rnd)
+        self.assertEqual(held.yields[0].previous_day, 10)
+        self.assertIsNone(self.hold.after_failure(failed, 5).yields[0].previous_day)
 
 
 class TotalPower(unittest.TestCase):
