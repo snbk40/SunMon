@@ -970,10 +970,13 @@ class Yields(unittest.TestCase):
 
 
 class Hold(unittest.TestCase):
-    """Up to three failed reads in a row are bridged with the last good value."""
+    """Up to held_reads failed reads in a row are bridged with the last good value.
+
+    The tests use a limit of 3 to stay short; the default is checked on its own.
+    """
 
     def setUp(self):
-        self.hold = api.ValueHold()
+        self.hold = api.ValueHold(held_reads=3)
 
     def data(self, powers, days=None, hours=None, months=None, years=None, *, rnd=None):
         channels = tuple(
@@ -994,8 +997,18 @@ class Hold(unittest.TestCase):
     def powers(self, data):
         return [None if c is None else c.power for c in data.channels]
 
-    def test_three_reads_are_held(self):
-        self.assertEqual(api.HELD_READS, 3)
+    def test_ten_reads_are_held(self):
+        self.assertEqual(api.HELD_READS, 10)
+
+    def test_default_holds_ten_failed_reads_and_the_eleventh_is_a_problem(self):
+        hold = api.ValueHold()
+        hold.apply(self.data([100, 200]))
+        for failure in range(1, 11):
+            held = hold.apply(self.data([110, None]))
+            self.assertEqual(self.powers(held), [110, 200], failure)
+            self.assertEqual(hold.problem_channels, (), failure)
+        self.assertEqual(self.powers(hold.apply(self.data([110, None]))), [110, None])
+        self.assertEqual(hold.problem_channels, (1,))
 
     def test_good_values_pass_through(self):
         data = self.data([100, 200, 300])

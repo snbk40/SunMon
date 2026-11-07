@@ -353,10 +353,10 @@ flowchart TD
 ```
 
 - A problem with the yields never stops the live values. A yield that cannot be
-  read keeps its last value for up to 3 failed rounds in a row.
+  read keeps its last value for up to 10 failed rounds in a row.
 - A wrong checksum or an answer for another channel only affects that channel.
 - A request without an answer ends the cycle. SunMon then keeps the last good
-  values for up to 3 failed reads in a row; from the 4th they are unavailable.
+  values for up to 10 failed reads in a row; from the 11th they are unavailable.
 
 ### Receiving a binary answer
 
@@ -440,7 +440,7 @@ From any state, no progress for 2 seconds restarts the whole sequence at
 | Power | unsigned | signed |
 | Yield digits used | last 4 (day) or 7 (hour) | all 8 |
 | Pause before a yield query | none | 300 ms |
-| No answer | restarts the whole sequence | ends the cycle, keeps the last values for up to 3 failed reads |
+| No answer | restarts the whole sequence | ends the cycle, keeps the last values for up to 10 failed reads |
 | Echo and stray `00` | not handled | skipped |
 
 ## Open questions

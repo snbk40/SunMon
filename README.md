@@ -102,9 +102,9 @@ The device is called **SolarCount**, so the entities are named for example
 
 ## When a read fails
 
-A value that cannot be read keeps its last good value for up to **3 failed
+A value that cannot be read keeps its last good value for up to **10 failed
 reads in a row**, so a short disturbance does not show up as a gap and does not
-count as a problem. From the 4th failed read in a row, the value is
+count as a problem. From the 11th failed read in a row, the value is
 *unavailable* and the **Status of Values** indicator turns on.
 
 - **One channel fails** (wrong checksum, or an answer that does not fit the
@@ -113,25 +113,25 @@ count as a problem. From the 4th failed read in a row, the value is
 - **The whole read fails** (the SolarCount does not answer, or the serial port
   has a problem): this counts as a failed read of every channel.
 - **Yields** are counted the same way, each on its own. They are read once per
-  yield round, about once a minute, so they become unavailable after the 4th
-  failed round, not after the 4th cycle.
+  yield round, about once a minute, so they become unavailable after the 11th
+  failed round, not after the 11th cycle.
 - Failed reads only count in a row: every good read starts the count again.
 - The diagnostic sensor **Status of Values** stays off (shown as "OK") while
   values are only bridged. It is on (shown as "Problem") while any value is
-  unavailable after 4 failed reads, and its attribute lists the channels
+  unavailable after 11 failed reads, and its attribute lists the channels
   concerned. It goes off again when every such value can be read again.
 - This sensor was called **Values held** up to version 1.3.1 and **Values
   unavailable** in 1.4.0. An existing installation keeps its entity ID, for
   example `binary_sensor.solarcount_values_held` or
   `binary_sensor.solarcount_values_unavailable`; a new one gets
   `binary_sensor.solarcount_status_of_values`.
-- At 4 failed reads a warning is logged, and an info message when everything
+- At 11 failed reads a warning is logged, and an info message when everything
   can be read again. The single failed reads before that are only logged at
   debug level.
 - The held value itself looks like any other; the sums use held values like
   fresh ones.
 - A value that has not been read since Home Assistant started has nothing to
-  hold: it is unavailable from the start and counts as a problem from the 4th
+  hold: it is unavailable from the start and counts as a problem from the 11th
   failed read. If the very first read after a start fails as a whole, the
   setup is retried.
 
@@ -196,8 +196,8 @@ SunMon also reads, once a minute, for each channel:
 - The yields are read once a minute, before the power readings, and keep their
   value in between.
 - A yield whose answer has a wrong checksum, or belongs to another channel,
-  keeps its last value for up to 3 failed rounds in a row and is *unavailable*
-  from the 4th.
+  keeps its last value for up to 10 failed rounds in a row and is *unavailable*
+  from the 11th.
 - Problems with the yields never stop the power readings. If the SolarCount does
   not answer the clock or a yield query, the round ends there, the yields not
   yet read are treated as failed, and the next round tries again. This costs up

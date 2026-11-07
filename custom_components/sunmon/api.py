@@ -102,7 +102,7 @@ YIELD_INTERVAL = 60.0  # SOLAR_TIME_CHECK_INTERVAL, time between yield rounds
 
 # How many failed reads in a row the last good value bridges. From the next
 # failed read on, the value is unavailable and counts as a problem.
-HELD_READS = 3
+HELD_READS = 10
 
 # Throughput is averaged over this window.
 THROUGHPUT_WINDOW = 60.0
