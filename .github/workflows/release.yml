@@ -1,0 +1,81 @@
+# Publishes a GitHub release when the version in manifest.json changes on main.
+#
+# The release notes are the body of the commit that last changed manifest.json
+# (the version bump), without its trailer lines. If that body is empty, the
+# notes list the commit titles since the previous release instead.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [custom_components/sunmon/manifest.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read the version
+        id: version
+        run: |
+          version=$(jq -r .version custom_components/sunmon/manifest.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether the release exists
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists already, nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write the release notes
+        if: steps.exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Body of the version bump commit, without the subject and the trailers.
+          git log -1 --format=%B -- custom_components/sunmon/manifest.json \
+            | tail -n +2 \
+            | grep -v -E '^(Co-Authored-By|Claude-Session|Signed-off-by):' \
+            | sed -e '/./,$!d' > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            previous=$(gh release view --json tagName --jq .tagName 2>/dev/null || true)
+            range=${previous:+$previous..}HEAD
+            {
+              echo "## Changes"
+              git log --no-merges --format='- %s' "$range" \
+                | grep -v -E '^- Bump the version' || true
+            } > notes.md
+          fi
+          cat notes.md
+
+      - name: Publish the release
+        if: steps.exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes-file notes.md \
+            --latest

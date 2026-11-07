@@ -379,3 +379,14 @@ ruff check .
 ruff format --check .
 mypy custom_components/sunmon tests
 ```
+
+## Releases
+
+A release is published automatically when a push to `main` changes the version
+in `custom_components/sunmon/manifest.json`. The workflow in
+`.github/workflows/release.yml` creates the tag `v<version>` and a GitHub
+release, which HACS then offers as an update.
+
+The release notes are the body of the version bump commit, without its trailer
+lines. If that body is empty, they list the commit titles since the previous
+release. A version that already has a release is skipped.
