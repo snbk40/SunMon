@@ -20,22 +20,24 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the indicator for a config entry."""
-    async_add_entities([SunMonValuesHeld(entry.runtime_data)])
+    async_add_entities([SunMonValuesUnavailable(entry.runtime_data)])
 
 
-class SunMonValuesHeld(SunMonEntity, BinarySensorEntity):
+class SunMonValuesUnavailable(SunMonEntity, BinarySensorEntity):
     """On while a value is unavailable because it failed too often in a row.
 
     Up to HELD_READS failed reads are bridged with the last good value and
     leave this off.
     """
 
-    _attr_translation_key = "values_held"
+    _attr_translation_key = "values_unavailable"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: SunMonCoordinator) -> None:
         """Initialise the indicator."""
+        # Keeps the ID from when it was called "Values held", so existing
+        # installations keep the same entity and its history.
         super().__init__(coordinator, "values_held")
 
     @property

@@ -28,7 +28,7 @@ For all channels together:
 For troubleshooting:
 
 - RS485 counters, throughput and bus load
-- a **Values held** indicator that shows when values are unavailable because
+- a **Values unavailable** indicator that shows when values are unavailable because
   they failed to read more than 3 times in a row
 
 ## Requirements
@@ -105,7 +105,7 @@ The device is called **SolarCount**, so the entities are named for example
 A value that cannot be read keeps its last good value for up to **3 failed
 reads in a row**, so a short disturbance does not show up as a gap and does not
 count as a problem. From the 4th failed read in a row, the value is
-*unavailable* and the **Values held** indicator turns on.
+*unavailable* and the **Values unavailable** indicator turns on.
 
 - **One channel fails** (wrong checksum, or an answer that does not fit the
   request): that channel keeps its last power and voltage, and the other
@@ -116,10 +116,14 @@ count as a problem. From the 4th failed read in a row, the value is
   yield round, about once a minute, so they become unavailable after the 4th
   failed round, not after the 4th cycle.
 - Failed reads only count in a row: every good read starts the count again.
-- The diagnostic sensor **Values held** stays off (shown as "OK") while values
-  are only bridged. It is on (shown as "Problem") while any value is
+- The diagnostic sensor **Values unavailable** stays off (shown as "OK") while
+  values are only bridged. It is on (shown as "Problem") while any value is
   unavailable after 4 failed reads, and its attribute lists the channels
   concerned. It goes off again when every such value can be read again.
+- Up to version 1.3.1 this sensor was called **Values held**. An existing
+  installation keeps its entity ID, for example
+  `binary_sensor.solarcount_values_held`; a new one gets
+  `binary_sensor.solarcount_values_unavailable`.
 - At 4 failed reads a warning is logged, and an info message when everything
   can be read again. The single failed reads before that are only logged at
   debug level.
@@ -232,7 +236,7 @@ yields per channel).
   sent and received, both throughputs and the bus load to 0, and makes the
   error rate unknown until the next request. If a cycle is
   running, it waits for the cycle to finish first. The averages then start over
-  as after a restart. Total power generated and the Values held indicator are
+  as after a restart. Total power generated and the Values unavailable indicator are
   not affected.
 
 ### RS485 communication error rate
@@ -345,7 +349,7 @@ Home Assistant they are two different integrations (`sunmon` and
 | `custom_components/sunmon/config_flow.py` | The setup dialog and the options dialog |
 | `custom_components/sunmon/entity.py` | Base class: device info and unique IDs |
 | `custom_components/sunmon/sensor.py` | Power, voltage and yield sensors, their sums, the total energy, and the RS485 sensors |
-| `custom_components/sunmon/binary_sensor.py` | The "Values held" indicator |
+| `custom_components/sunmon/binary_sensor.py` | The "Values unavailable" indicator |
 | `custom_components/sunmon/button.py` | The "Clear all diagnostics to 0" button |
 | `custom_components/sunmon/translations/` | UI texts (English and German) |
 | `custom_components/sunmon/brand/` | The integration's icon |

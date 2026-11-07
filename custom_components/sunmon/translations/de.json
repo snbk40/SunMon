@@ -59,8 +59,8 @@
       }
     },
     "binary_sensor": {
-      "values_held": {
-        "name": "Werte gehalten",
+      "values_unavailable": {
+        "name": "Werte nicht verfügbar",
         "state_attributes": {
           "channels": {
             "name": "Kanäle"
