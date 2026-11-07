@@ -23,9 +23,22 @@ from homeassistant.const import (
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .api import ChannelReading, ChannelYield, SolarCountData, SolarCountStats
+from .api import (
+    MAX_CHANNELS,
+    ChannelReading,
+    ChannelYield,
+    SolarCountData,
+    SolarCountStats,
+)
+from .const import (
+    CONF_READ_VOLTAGE,
+    DEFAULT_READ_VOLTAGE,
+    DOMAIN,
+    option,
+)
 from .coordinator import SunMonConfigEntry, SunMonCoordinator
 from .entity import SunMonEntity, device_info
 
@@ -250,25 +263,76 @@ async def async_setup_entry(
     entry: SunMonConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the sensors of every configured channel, the sums and the counters."""
+    """Set up the sensors of every configured channel, the sums and the counters.
+
+    Voltage and yield sensors are only set up while they are switched on in
+    the settings. When they are switched off, their old entities are removed.
+    """
     coordinator = entry.runtime_data
+    read_voltage = bool(option(entry, CONF_READ_VOLTAGE, DEFAULT_READ_VOLTAGE))
+    read_yields = coordinator.client.read_yields
+    channel_sensors = tuple(
+        description
+        for description in SENSORS
+        if read_voltage or description.key != "voltage"
+    )
+
     entities: list[SensorEntity] = [
         SunMonSensor(coordinator, channel, description)
         for channel in range(coordinator.client.channels)
-        for description in SENSORS
+        for description in channel_sensors
     ]
     entities.extend(SunMonSumSensor(coordinator, description) for description in SUMS)
     entities.append(SunMonEnergySensor(coordinator))
-    entities.extend(
-        SunMonYieldSensor(coordinator, channel, description)
-        for channel in range(coordinator.client.channels)
-        for description in YIELDS
-    )
-    entities.extend(
-        SunMonSumSensor(coordinator, description) for description in YIELD_SUMS
-    )
+    if read_yields:
+        entities.extend(
+            SunMonYieldSensor(coordinator, channel, description)
+            for channel in range(coordinator.client.channels)
+            for description in YIELDS
+        )
+        entities.extend(
+            SunMonSumSensor(coordinator, description) for description in YIELD_SUMS
+        )
     entities.extend(SunMonCounter(coordinator, description) for description in COUNTERS)
+
+    _remove_switched_off(
+        hass, entry, read_voltage=read_voltage, read_yields=bool(read_yields)
+    )
     async_add_entities(entities)
+
+
+def switched_off_keys(*, read_voltage: bool, read_yields: bool) -> list[str]:
+    """Return the keys of the sensors that are switched off in the settings."""
+    keys: list[str] = []
+    for channel in range(MAX_CHANNELS):
+        if not read_voltage:
+            keys.append(f"ch{channel}_voltage")
+        if not read_yields:
+            keys.extend(f"ch{channel}_{description.key}" for description in YIELDS)
+    if not read_yields:
+        keys.extend(description.key for description in YIELD_SUMS)
+    return keys
+
+
+def _remove_switched_off(
+    hass: HomeAssistant,
+    entry: SunMonConfigEntry,
+    *,
+    read_voltage: bool,
+    read_yields: bool,
+) -> None:
+    """Remove the entities of sensors that were switched off in the settings.
+
+    Their history stays in the recorder. When a sensor is switched on again,
+    it comes back with the same entity ID, as long as nothing else took it.
+    """
+    registry = er.async_get(hass)
+    for key in switched_off_keys(read_voltage=read_voltage, read_yields=read_yields):
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_{key}"
+        )
+        if entity_id is not None:
+            registry.async_remove(entity_id)
 
 
 class SunMonSensor(SunMonEntity, SensorEntity):

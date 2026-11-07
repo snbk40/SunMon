@@ -8,9 +8,12 @@ from homeassistant.core import HomeAssistant
 from .api import SolarCountClient, set_trace
 from .const import (
     CONF_CHANNELS,
+    CONF_READ_YIELDS,
     CONF_SERIAL_PORT,
     CONF_TRACE_SERIAL,
     DEFAULT_CHANNELS,
+    DEFAULT_READ_YIELDS,
+    option,
 )
 from .coordinator import SunMonConfigEntry, SunMonCoordinator
 
@@ -19,16 +22,13 @@ PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.S
 
 async def async_setup_entry(hass: HomeAssistant, entry: SunMonConfigEntry) -> bool:
     """Set up the integration from a config entry."""
-    channels = entry.options.get(
-        CONF_CHANNELS, entry.data.get(CONF_CHANNELS, DEFAULT_CHANNELS)
-    )
-    trace = entry.options.get(
-        CONF_TRACE_SERIAL, entry.data.get(CONF_TRACE_SERIAL, False)
-    )
-    set_trace(entry.entry_id, bool(trace))
+    channels = option(entry, CONF_CHANNELS, DEFAULT_CHANNELS)
+    set_trace(entry.entry_id, bool(option(entry, CONF_TRACE_SERIAL, False)))
 
     client = SolarCountClient(
-        entry.data[CONF_SERIAL_PORT], int(channels), read_yields=True
+        entry.data[CONF_SERIAL_PORT],
+        int(channels),
+        read_yields=bool(option(entry, CONF_READ_YIELDS, DEFAULT_READ_YIELDS)),
     )
     coordinator = SunMonCoordinator(hass, entry, client)
 

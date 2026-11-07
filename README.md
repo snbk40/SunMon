@@ -20,6 +20,8 @@ For each channel of the SolarCount (up to 6):
 - **power** in watts and **voltage** in volts
 - the **yield** of the previous hour, day, month and year
 
+Voltage and yields can each be switched off in the settings.
+
 For all channels together:
 
 - the **sum** of the power and of each yield
@@ -29,7 +31,7 @@ For troubleshooting:
 
 - RS485 counters, throughput and bus load
 - a **Status of Values** indicator that shows when values are unavailable because
-  they failed to read more than 3 times in a row
+  they failed to read more than 10 times in a row
 
 ## Requirements
 
@@ -63,8 +65,8 @@ is A and B being swapped.
 2. Restart Home Assistant.
 3. Go to **Settings > Devices & services > Add integration** and search for
    **SunMon**.
-4. Choose the serial port of the adapter, the number of channels and the update
-   interval. Everything except the serial port can be changed later with the
+4. Choose the serial port of the adapter, the number of channels, the update
+   interval, and whether to read voltage and yields. Everything except the serial port can be changed later with the
    **Configure** button.
 
 The dialog tests the connection before it creates the integration. If the
@@ -85,7 +87,19 @@ when the adapter is replugged.
 | Serial port | first port found | the USB to RS485 adapter |
 | Number of channels | 3 | how many SolarCount channels to read, 1 to 6, starting with the first |
 | Update interval | 10 s | how often the SolarCount is read, 5 to 3600 seconds |
+| Read voltage | on | set up a voltage sensor for each channel |
+| Read yields | on | read the yields of every channel and their sums, about once a minute |
 | Log serial traffic (TRACE) | off | write every byte on the line to the log, see [Logging](#logging) |
+
+- **Read voltage** only decides whether the voltage sensors are shown. The
+  voltage comes in the same answer as the power, so switching it off does not
+  reduce the traffic on the line.
+- **Read yields** off stops the yield rounds: no clock query and no yield
+  queries. With six channels that saves 25 requests per minute, which can help
+  on a line with many read errors.
+- When one of them is switched off, the sensors it covers are removed. Their
+  history stays in Home Assistant. Switched on again, they come back with the
+  same entity IDs.
 
 ## What is read
 
